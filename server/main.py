@@ -179,9 +179,11 @@ def _auth() -> dict:
     return {"Authorization": f"Bearer {LLM_API_KEY}"}
 
 
-def _voices_raw():
-    response = httpx.get(f"{LLM_BASE_URL}/audio/voices", headers=_auth(), timeout=20)
-    response.raise_for_status()
+def _voices_raw(model: str):
+    """Vultr's list of voices for one speech model. The error text is kept, so a wrong request is easy to see."""
+    response = httpx.get(f"{LLM_BASE_URL}/audio/voices", headers=_auth(), params={"model": model}, timeout=20)
+    if response.status_code != 200:
+        raise RuntimeError(f"{response.status_code}: {response.text[:300]}")
     return response.json()
 
 
@@ -209,11 +211,10 @@ def pick_voice() -> str:
     if _voice is None:
         found: list = []
         try:
-            _find_voices(_voices_raw(), found)
+            _find_voices(_voices_raw(TTS_MODEL), found)
         except Exception as e:
             print(f"Could not list voices: {e}", flush=True)
-        for_model = [voice for voice, detail in found if TTS_MODEL in detail]
-        _voice = (for_model or [voice for voice, _ in found] or [""])[0]
+        _voice = ([voice for voice, _ in found] or [""])[0]
     return _voice
 
 
@@ -238,21 +239,21 @@ def voice_list():
     """Every (model, voice) pair on offer, in one flat list for the voice-picker page."""
     if not LLM_API_KEY:
         raise HTTPException(500, "LLM_API_KEY is not set.")
-    try:
-        raw = _voices_raw()
-    except Exception as e:
-        raise HTTPException(502, f"Could not list voices: {e}")
-    found: list = []
-    _find_voices(raw, found)
-    pairs, seen = [], set()
+    pairs, notes = [], []
     for model in TTS_MODELS:
-        mine = [voice for voice, detail in found if model in detail]
-        # If the list doesn't say which model a voice belongs to, offer every voice under every model.
-        for voice in mine or [voice for voice, _ in found]:
-            if (model, voice) not in seen:
-                seen.add((model, voice))
+        # Every model can be tried with its own default voice, even if its list can't be read.
+        pairs.append({"model": model, "voice": ""})
+        found: list = []
+        try:
+            _find_voices(_voices_raw(model), found)
+        except Exception as e:
+            notes.append(f"{model}: {e}")
+        seen = set()
+        for voice, _ in found:
+            if voice not in seen:
+                seen.add(voice)
                 pairs.append({"model": model, "voice": voice})
-    return {"in_use": {"model": TTS_MODEL, "voice": pick_voice()}, "voices": pairs}
+    return {"in_use": {"model": TTS_MODEL, "voice": pick_voice()}, "voices": pairs, "notes": notes}
 
 
 @app.get("/api/voices")
@@ -260,10 +261,12 @@ def voices():
     """For setup: shows the speech model, the voice in use and every voice Vultr offers."""
     if not LLM_API_KEY:
         raise HTTPException(500, "LLM_API_KEY is not set.")
-    try:
-        offered = _voices_raw()
-    except Exception as e:
-        offered = f"Could not list voices: {e}"
+    offered = {}
+    for model in TTS_MODELS:
+        try:
+            offered[model] = _voices_raw(model)
+        except Exception as e:
+            offered[model] = f"Could not list voices: {e}"
     return {"speech_model": TTS_MODEL, "voice_in_use": pick_voice(), "offered": offered}
 
 

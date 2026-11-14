@@ -43,18 +43,18 @@ async function play(model, voice, button) {
   if (!text) { status.textContent = 'Type a line for Earthy to say first.'; return; }
   if (player) player.pause();
   button.disabled = true;
-  status.textContent = 'Making the sound for ' + voice + '…';
+  status.textContent = 'Making the sound for ' + (voice || 'the default voice') + '…';
   try {
     const response = await fetch('/api/speak', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text, model, voice }),
+      body: JSON.stringify(voice ? { text, model, voice } : { text, model }),
     });
     const data = await response.json();
     if (!response.ok) throw new Error(data.detail || 'The server answered ' + response.status);
     player = new Audio(data.url);
     await player.play();
-    status.textContent = 'Playing: ' + model + ' · ' + voice;
+    status.textContent = 'Playing: ' + model + ' · ' + (voice || 'default voice');
   } catch (error) {
     status.textContent = 'That voice did not work: ' + error.message;
   } finally {
@@ -67,7 +67,6 @@ async function load() {
     const response = await fetch('/api/voice-list');
     const data = await response.json();
     if (!response.ok) throw new Error(data.detail || 'The server answered ' + response.status);
-    if (!data.voices.length) { status.textContent = 'Vultr listed no voices. Send Claude a screenshot of /api/voices.'; return; }
     const byModel = {};
     for (const item of data.voices) (byModel[item.model] = byModel[item.model] || []).push(item.voice);
     for (const model of Object.keys(byModel)) {
@@ -78,17 +77,17 @@ async function load() {
         const row = document.createElement('li');
         if (data.in_use.model === model && data.in_use.voice === voice) row.className = 'current';
         const name = document.createElement('span');
-        name.textContent = voice;
+        name.textContent = voice || 'Default voice';
         const button = document.createElement('button');
         button.textContent = 'Play';
-        button.setAttribute('aria-label', 'Play ' + voice + ' on ' + model);
+        button.setAttribute('aria-label', 'Play ' + (voice || 'the default voice') + ' on ' + model);
         button.addEventListener('click', () => play(model, voice, button));
         row.append(name, button);
         list.append(row);
       }
       lists.append(heading, list);
     }
-    status.textContent = data.voices.length + ' voices found. Press Play to listen.';
+    status.textContent = data.voices.length + ' voices to try. Press Play to listen.' + (data.notes.length ? ' Note for Claude: ' + data.notes.join(' | ') : '');
   } catch (error) {
     status.textContent = 'Could not load the voices: ' + error.message;
   }
