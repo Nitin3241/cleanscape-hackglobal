@@ -35,6 +35,9 @@ load_dotenv()
 LLM_BASE_URL = os.getenv("LLM_BASE_URL", "https://api.vultrinference.com/v1")
 LLM_API_KEY = os.getenv("LLM_API_KEY", "")
 LLM_MODEL = os.getenv("LLM_MODEL", "")
+# Answers that will be read aloud use the quickest model measured on this account (/api/speed-check, 14 Nov:
+# 0.8 s against 1.6 s). If it fails, the usual model answers instead.
+SPOKEN_MODEL = os.getenv("SPOKEN_MODEL", "deepseek-v4.1-flash-1017")
 
 # What Earthy knows. This is demo data: the same sample user and event the app shows.
 EARTHY_CONTEXT = """
@@ -95,6 +98,18 @@ VOICE_LANGUAGES = ("en", "ar")  # the app's two languages
 MAX_AUDIO_BYTES = 8 * 1024 * 1024  # about a minute of phone audio is well under this
 _whisper = None
 _whisper_lock = threading.Lock()
+
+
+# What speech models write when there was no speech, only room noise or silence. These are not questions.
+NOISE_LINES = {
+    "", "you", "thank you", "thanks", "thank you very much", "thanks for watching", "thank you for watching",
+    "bye", "bye bye", "okay", "ok", "so", "uh", "um", "hmm", "mm", "oh", "ah", "the", "i", "شكرا", "شكرا لكم",
+}
+
+
+def _only_noise(text: str) -> bool:
+    plain = re.sub(r"[^\w\s]", "", text, flags=re.UNICODE).strip().lower()
+    return plain in NOISE_LINES or (len(plain) < 3 and not ARABIC.search(plain))
 
 
 def get_whisper():
@@ -168,6 +183,9 @@ def transcribe(audio: UploadFile = File(...)):
                 model=STT_MODEL, file=(f"question{suffix}", data, audio.content_type or "audio/m4a")
             )
             text = (getattr(heard, "text", "") or "").strip()
+            if _only_noise(text):
+                print(f"Heard {len(data)} bytes ({suffix}): nothing but noise ({text!r})", flush=True)
+                text = ""
             # One line per voice question in `docker logs earthy`, to see what was heard (sizes only, no audio kept).
             print(f"Heard {len(data)} bytes ({suffix}) with {STT_MODEL}: {text!r}", flush=True)
             return {"text": text, "language": "ar" if ARABIC.search(text) else "en", "engine": STT_MODEL}
@@ -397,6 +415,9 @@ class SpeakRequest(BaseModel):
     # Only the voice-picker page sends these two, to try a voice before it is chosen.
     voice: str | None = Field(default=None, max_length=120)
     model: str | None = Field(default=None, max_length=120)
+    # True: only answer if this exact line was voiced at start-up (a built-in question's answer). The app asks
+    # this first, so those play at once, and otherwise voices the answer sentence by sentence.
+    prepared_only: bool = False
 
 
 @app.get("/voices")
@@ -456,6 +477,8 @@ def speak(req: SpeakRequest):
         with _audio_lock:
             if _clips[text] in _audio:
                 return {"url": f"/api/audio/{_clips[text]}", "prepared": True}
+    if req.prepared_only:
+        raise HTTPException(404, "This line was not prepared.")
     if req.model or req.voice:  # the voice-picker page trying a voice
         model, voice = req.model or TTS_MODEL, req.voice or pick_voice()
     elif ARABIC.search(req.text):
@@ -542,15 +565,18 @@ def chat(req: ChatRequest):
     client = OpenAI(base_url=LLM_BASE_URL, api_key=LLM_API_KEY, timeout=30)
     messages = [{"role": "system", "content": SYSTEM_PROMPT + ("\n\n" + SPOKEN_STYLE if req.spoken else "")}]
     messages += [m.model_dump() for m in turns[-12:]]  # keep the last 12 turns
-    try:
-        result = client.chat.completions.create(
-            model=LLM_MODEL, messages=messages, temperature=0.3, max_tokens=900
-        )
-    except Exception as e:  # show the provider's error so it's easy to debug
-        raise HTTPException(502, f"LLM request failed: {e}")
-    reply = (result.choices[0].message.content or "").strip()
+    reply, problem = "", ""
+    for model in dict.fromkeys([SPOKEN_MODEL, LLM_MODEL] if req.spoken and SPOKEN_MODEL else [LLM_MODEL]):
+        try:
+            result = client.chat.completions.create(model=model, messages=messages, temperature=0.3, max_tokens=900)
+            reply = (result.choices[0].message.content or "").strip()
+            if reply:
+                break
+            problem = "The model returned an empty answer."
+        except Exception as e:  # keep the provider's error so it's easy to debug
+            problem = f"LLM request failed: {e}"
     if not reply:
-        raise HTTPException(502, "The model returned an empty answer.")
+        raise HTTPException(502, problem)
     if first and first[1] in WARM_QUESTIONS:
         _answers[first] = reply
     return {"reply": reply}
