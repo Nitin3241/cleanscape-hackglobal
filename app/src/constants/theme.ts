@@ -122,6 +122,8 @@ const light = {
   levelLowText: '#1E7A46',
   // Secondary hairline on chips and steppers (#D9DEE1) and the co-host chip (#C9D4D8).
   strokeChip: '#D9DEE1',
+  // Ask chips round Earthy's orb (Figma Onb 02.4).
+  strokeAskChip: '#D9E5EB',
   strokeCoHost: '#C9D4D8',
   // Selected time chip note (#B9DDEA), photo tag (white 90%), bottom-bar top line (#EEF1F2).
   timeNoteOnBrand: '#B9DDEA',
@@ -231,6 +233,12 @@ const light = {
   earthyBar: '#B9DDEA',
   // AI/Button Danger, "Alert organiser" on heat safety (#D6421B).
   earthyDanger: '#D6421B',
+  // Voice transcript (F9v2·0, F9v2·2): the words Earthy hasn't heard yet (#9AABB2).
+  earthyUnheard: '#9AABB2',
+  // T6 ride chat "Composer": white 62% glass.
+  glassComposer: 'rgba(255, 255, 255, 0.62)',
+  // T5 Request sent: the "Avatar pulse" halo round the driver (brand at 12%).
+  brandHalo: 'rgba(30, 98, 128, 0.12)',
 } as const;
 
 export const Colors = {
@@ -266,6 +274,8 @@ export const Gradients = {
   },
   splash: { colors: ['#D5ECF4', '#E6F3F8', '#F3F9FB'], locations: [0, 0.6, 1] },
   goodToGo: { colors: ['#D5ECF4', light.background] },
+  // Figma Onb 12: #D5ECF4 to white at 70%, then white.
+  goodToGoOnboarding: { colors: ['#D5ECF4', light.background], locations: [0, 0.7] },
   pass: {
     colors: ['#2C7E9B', '#25708F', '#2D6193'],
     locations: [0.05, 0.5, 0.95],
@@ -277,6 +287,8 @@ export const Gradients = {
 /** `boxShadow` strings, matching the Figma effects. */
 export const Shadows = {
   chip: '0px 6px 20px 0px rgba(18, 37, 46, 0.08)',
+  /** Figma Onb 02.4 ask chips: y 6, blur 16. */
+  askChip: '0px 6px 16px 0px rgba(18, 41, 51, 0.1)',
   ticket: '0px 10px 24px -6px rgba(15, 51, 69, 0.18)',
   digit: '0px 2.48px 0px 0px rgba(13, 51, 69, 0.35)',
   buttonPrimary: `0px 4px 0px 0px ${light.brandPressed}`,

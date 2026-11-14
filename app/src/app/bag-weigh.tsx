@@ -13,6 +13,7 @@ import { Icon } from '@/components/ui/icon';
 import { Avatar } from '@/components/ui/parts';
 import { Tappable } from '@/components/ui/tappable';
 import { SHEET_EASING } from '@/constants/motion';
+import { floatingSheetEdge } from '@/constants/sheet-edge';
 import { Fonts, Motion, Radius, Spacing } from '@/constants/theme';
 import { BAG, BAG_RESULT, EXPECTED_KG } from '@/data/bag-log.sample';
 import { feedback } from '@/feedback';
@@ -43,7 +44,7 @@ export default function BagWeighRoute() {
 
       <Animated.View
         entering={SlideInDown.duration(Motion.transition.sheet.duration).easing(SHEET_EASING)}
-        style={[styles.sheet, { backgroundColor: theme.card, bottom: Math.max(insets.bottom, Spacing.two) }]}>
+        style={[styles.sheet, { backgroundColor: theme.card, ...floatingSheetEdge(insets.bottom) }]}>
         <View style={[styles.grabber, { backgroundColor: theme.strokeChip }]} />
         <View style={styles.head}>
           <Avatar initials={BAG.volunteer.initials} tone="avatarSea" size={40} />

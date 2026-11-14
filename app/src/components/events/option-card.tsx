@@ -5,6 +5,7 @@ import { ThemedText } from '@/components/themed-text';
 import { Icon, type IconName } from '@/components/ui/icon';
 import { IconTile } from '@/components/ui/parts';
 import { Tappable } from '@/components/ui/tappable';
+import { FigmaLines } from '@/constants/figma-lines';
 import { Radius, Shadows, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
@@ -16,6 +17,8 @@ type OptionCardProps = {
   best?: string;
   /** Greyed out, for a way that isn't allowed. */
   off?: boolean;
+  /** No gap between the title and the detail (Figma T1 and T14 "Option: Carpool"). */
+  tight?: boolean;
   /** Content between the title and the detail, such as the route chips. */
   inline?: ReactNode;
   /** Content below the whole row, such as buttons. */
@@ -26,7 +29,18 @@ type OptionCardProps = {
 };
 
 /** One way to get there. The recommended way gets a tinted panel and a stronger edge. */
-export function OptionCard({ icon, title, detail, best, off = false, inline, footer, trailing, onPress }: OptionCardProps) {
+export function OptionCard({
+  icon,
+  title,
+  detail,
+  best,
+  off = false,
+  tight = false,
+  inline,
+  footer,
+  trailing,
+  onPress,
+}: OptionCardProps) {
   const theme = useTheme();
   const highlighted = best !== undefined;
   const body = (
@@ -34,18 +48,18 @@ export function OptionCard({ icon, title, detail, best, off = false, inline, foo
       {best !== undefined && (
         <View style={styles.best}>
           <Icon name="star" size={11} color="secondary" fill="secondary" strokeWidth={1} />
-          <ThemedText type="tag" themeColor="brand">
+          <ThemedText type="tag" themeColor="brand" style={FigmaLines.l17}>
             Best for you
           </ThemedText>
-          <ThemedText type="ringCaption" themeColor="textWeak">
+          <ThemedText type="ringCaption" themeColor="textWeak" style={FigmaLines.l17}>
             {best}
           </ThemedText>
         </View>
       )}
       <View style={styles.row}>
         <IconTile icon={icon} size={34} iconSize={20} tone={off ? 'wellCool' : 'fill'} color={off ? 'strokeStrong' : 'brand'} />
-        <View style={styles.text}>
-          <ThemedText type="labelLarge" themeColor={off ? 'textWeak' : 'textStrong'}>
+        <View style={[styles.text, tight && styles.tight]}>
+          <ThemedText type="labelLarge" themeColor={off ? 'textWeak' : 'textStrong'} style={FigmaLines.l23}>
             {title}
           </ThemedText>
           {inline}
@@ -102,5 +116,8 @@ const styles = StyleSheet.create({
   text: {
     flex: 1,
     gap: Spacing.one,
+  },
+  tight: {
+    gap: 0,
   },
 });

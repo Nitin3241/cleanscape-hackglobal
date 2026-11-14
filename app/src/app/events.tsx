@@ -164,6 +164,8 @@ export default function EventsRoute() {
         <ScreenInsight
           id="events"
           target={bestRef}
+          // The best-match card has 20 px corners, so the ring follows it (the default is for 24 px panels).
+          targetRadius={Radius.card}
           onAction={() => router.push({ pathname: '/event-detail', params: { id: best.id } })}
         />
       )}

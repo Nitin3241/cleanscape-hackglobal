@@ -20,13 +20,11 @@ const WAYS_TO_JOIN = [
 const WITH_SCHOOL = 'With my school';
 
 export default function InterestsRoute() {
-  // Figma shows example picks, but real choices should start empty. Only "With my school" is saved, to end onboarding on Join your class.
-  const [picked, setPicked] = useState<readonly string[]>([]);
+  // SAMPLE: starts on Figma Onb 10's example picks. Only "With my school" is saved, to end onboarding on Join your class.
+  const [picked, setPicked] = useState<readonly string[]>(['Dubai', 'Weekends', 'With friends or family']);
 
   function toggle(option: string) {
-    setPicked((current) =>
-      current.includes(option) ? current.filter((item) => item !== option) : [...current, option],
-    );
+    setPicked((current) => (current.includes(option) ? current.filter((item) => item !== option) : [...current, option]));
   }
 
   return (
@@ -49,23 +47,36 @@ export default function InterestsRoute() {
         Pick any. You can change these later.
       </ThemedText>
 
-      <Section label="EMIRATE">
+      {/* Figma gaps above the section labels: 18, 16, then 14. */}
+      <Section label="EMIRATE" gap={18}>
         <View style={styles.chips}>
           {EMIRATES.map((option) => (
-            <ChoiceChip key={option} label={option} selected={picked.includes(option)} onPress={() => toggle(option)} />
+            <ChoiceChip
+              key={option}
+              label={option}
+              selected={picked.includes(option)}
+              onPress={() => toggle(option)}
+              borderOutsidePadding
+            />
           ))}
         </View>
       </Section>
 
-      <Section label="WHEN">
+      <Section label="WHEN" gap={Spacing.three}>
         <View style={styles.chips}>
           {TIMES.map((option) => (
-            <ChoiceChip key={option} label={option} selected={picked.includes(option)} onPress={() => toggle(option)} />
+            <ChoiceChip
+              key={option}
+              label={option}
+              selected={picked.includes(option)}
+              onPress={() => toggle(option)}
+              borderOutsidePadding
+            />
           ))}
         </View>
       </Section>
 
-      <Section label="HOW DO YOU JOIN?">
+      <Section label="HOW DO YOU JOIN?" gap={Spacing.threeLess}>
         <View style={styles.cards}>
           {WAYS_TO_JOIN.map((option) => (
             <ChoiceCard
@@ -82,9 +93,9 @@ export default function InterestsRoute() {
   );
 }
 
-function Section({ label, children }: { label: string; children: React.ReactNode }) {
+function Section({ label, gap, children }: { label: string; gap: number; children: React.ReactNode }) {
   return (
-    <View style={styles.section}>
+    <View style={[styles.section, { marginTop: gap }]}>
       <ThemedText type="sectionCaps" themeColor="textWeak" accessibilityRole="header">
         {label}
       </ThemedText>
@@ -101,7 +112,6 @@ const styles = StyleSheet.create({
     marginTop: Spacing.two,
   },
   section: {
-    marginTop: 18,
     gap: Spacing.two,
   },
   chips: {

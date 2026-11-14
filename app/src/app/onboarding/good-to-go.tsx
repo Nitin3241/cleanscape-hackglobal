@@ -2,11 +2,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { useEffect } from 'react';
 import { StyleSheet, View } from 'react-native';
-import Animated, {
-  useAnimatedStyle,
-  useReducedMotion,
-  useSharedValue,
-} from 'react-native-reanimated';
+import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Confetti, type ConfettiPiece } from '@/components/onboarding/confetti';
@@ -23,6 +19,8 @@ import { joinsWithSchool } from '@/state/school';
 const FINAL_SIZE = 180;
 const START_SCALE = 120 / FINAL_SIZE;
 const START_OPACITY = 0.4;
+// Figma 12a starts Earthy centred at y 310; it settles at y 290 in 12.
+const START_DROP = 20;
 const TEXT_RISE = 12;
 const FRAME_STATUS_BAR = 44;
 const FRAME_MASCOT_TOP = 200;
@@ -56,14 +54,14 @@ export default function GoodToGoRoute() {
 
   const mascotStyle = useAnimatedStyle(() => ({
     opacity: START_OPACITY + (1 - START_OPACITY) * Math.min(grow.get(), 1),
-    transform: [{ scale: START_SCALE + (1 - START_SCALE) * grow.get() }],
+    transform: [{ translateY: START_DROP * (1 - grow.get()) }, { scale: START_SCALE + (1 - START_SCALE) * grow.get() }],
   }));
   // The text arrives last, once Earthy has grown.
   const textStyle = useFadeUp({ delay: Motion.duration.celebrate, distance: TEXT_RISE });
 
   return (
     <View style={styles.screen}>
-      <LinearGradient {...Gradients.goodToGo} style={StyleSheet.absoluteFill} />
+      <LinearGradient {...Gradients.goodToGoOnboarding} style={StyleSheet.absoluteFill} />
 
       <View style={[styles.body, { paddingTop: insets.top + FRAME_MASCOT_TOP - FRAME_STATUS_BAR }]}>
         <View style={styles.mascot}>

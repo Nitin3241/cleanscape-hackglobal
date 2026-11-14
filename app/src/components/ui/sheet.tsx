@@ -13,11 +13,16 @@ import Animated, { Extrapolation, interpolate, useAnimatedStyle } from 'react-na
 import { SHEET_EASING } from '@/constants/motion';
 import { Motion, Radius } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 // Floating sheet (Figma, 13 Nov, iOS 26 rule): at a partial snap point it floats with an 8 px gap on the
 // sides and bottom and 32 px corners all round; at the top snap point it runs edge to edge.
 const SHEET_RADIUS = 32;
 const SHEET_GAP = 8;
+// On a phone with rounded screen corners the sheet's bottom corners follow the screen's curve: about 55 px
+// on current iPhones, less the 8 px gap. With 32 they looked pinched against the glass. A screenshot is
+// square, so this only shows on the device. Phones with square screens keep 32.
+const SHEET_BOTTOM_RADIUS = 47;
 
 type SheetProps = Omit<BottomSheetProps, 'children' | 'backgroundStyle' | 'handleIndicatorStyle' | 'backdropComponent'> & {
   children: ReactNode;
@@ -69,13 +74,17 @@ export const Sheet = forwardRef<BottomSheet, SheetProps>(function Sheet(
 
 /** White sheet surface that floats at partial height and goes edge to edge as it reaches `full`. */
 function FloatingBackground({ animatedIndex, style, full, color }: BottomSheetBackgroundProps & { full: number; color: string }) {
+  const bottomRadius = useSafeAreaInsets().bottom > 0 ? SHEET_BOTTOM_RADIUS : SHEET_RADIUS;
   const floatStyle = useAnimatedStyle(() => {
     const t = interpolate(animatedIndex.get(), [full - 1, full], [1, 0], Extrapolation.CLAMP);
     return {
       left: SHEET_GAP * t,
       right: SHEET_GAP * t,
       bottom: SHEET_GAP * t,
-      borderRadius: SHEET_RADIUS * t,
+      borderTopLeftRadius: SHEET_RADIUS * t,
+      borderTopRightRadius: SHEET_RADIUS * t,
+      borderBottomLeftRadius: bottomRadius * t,
+      borderBottomRightRadius: bottomRadius * t,
     };
   });
   return <Animated.View pointerEvents="none" style={[style, styles.background, { backgroundColor: color }, floatStyle]} />;

@@ -15,15 +15,28 @@ import { EARTHY_HOME, type StepId } from '@/data/earthy-chat.sample';
 import { useTheme } from '@/hooks/use-theme';
 import { earthyIsLive } from '@/services/earthy-api';
 
+import EarthyLiveRoute from './earthy-live';
+
 const openChat = (start: StepId) => router.push({ pathname: '/earthy-chat', params: { start } });
 
-const TILE_ICON_COLOR = { fill: 'brand', secondarySubtle: 'iconMarigold', statusSuccessSubtle: 'iconMarigold' } as const;
+// LIVE (server address set): a tile or suggestion asks the real assistant. With no server it opens its scripted answer.
+function open(start: StepId, ask: string) {
+  if (earthyIsLive) router.push({ pathname: '/earthy-live', params: { ask } });
+  else openChat(start);
+}
+
+const TILE_ICON_COLOR = { fill: 'brand', secondarySubtle: 'iconMarigold', statusSuccessSubtle: 'statusSuccess' } as const;
 
 /**
  * F9v2·1 Earthy home: a greeting, today at a glance and starting suggestions. Each one opens its
  * answer screen (Close there comes back here). "Type instead" on the voice sheet lands here.
  */
 export default function EarthyHomeRoute() {
+  // LIVE (server address set): the same home, with a real text box and real answers.
+  return earthyIsLive ? <EarthyLiveRoute /> : <ScriptedEarthyHome />;
+}
+
+function ScriptedEarthyHome() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const home = EARTHY_HOME;
@@ -48,20 +61,16 @@ export default function EarthyHomeRoute() {
 
         <View style={styles.section}>
           <ThemedText type="tag" themeColor="textWeak">
-            TODAY
+            {home.todayLabel}
           </ThemedText>
-          {/* Figma: three 106 px tiles, 10 apart; the third runs off the edge, so the row scrolls sideways. */}
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={styles.todayScroll}
-            contentContainerStyle={styles.today}>
+          {/* Figma (14 Nov): the three tiles share the row, 10 apart, and none runs off the edge. */}
+          <View style={styles.today}>
             {home.today.map((item) => (
               <Tappable
                 key={item.title}
                 accessibilityRole="button"
                 accessibilityLabel={`${item.title}, ${item.note}`}
-                onPress={() => openChat(item.start)}
+                onPress={() => open(item.start, item.ask)}
                 style={[styles.tile, { backgroundColor: theme[item.tone] }]}>
                 <Icon name={item.icon} size={20} color={TILE_ICON_COLOR[item.tone]} strokeWidth={2} />
                 <ThemedText type="labelSmall" style={styles.tileTitle}>
@@ -72,16 +81,15 @@ export default function EarthyHomeRoute() {
                 </ThemedText>
               </Tappable>
             ))}
-          </ScrollView>
+          </View>
         </View>
 
         <View style={styles.suggestions}>
           {home.suggestions.map((suggestion) => (
-            <SuggestionRow key={suggestion.label} large label={suggestion.label} onPress={() => openChat(suggestion.start)} />
+            <SuggestionRow key={suggestion.label} large label={suggestion.label} onPress={() => open(suggestion.start, suggestion.label)} />
           ))}
         </View>
       </ScrollView>
-      {/* With the Earthy server set (HackGlobal), typing opens the live chat; without it, the scripted turn. */}
       <ChatComposer onAsk={() => (earthyIsLive ? router.push('/earthy-live') : openChat('didYouMean'))} />
     </View>
   );
@@ -117,17 +125,14 @@ const styles = StyleSheet.create({
     gap: Spacing.twoHalf,
     paddingTop: 22,
   },
-  todayScroll: {
-    marginHorizontal: -Spacing.threeHalf,
-  },
   today: {
-    alignItems: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'stretch',
     gap: Spacing.twoHalf,
-    paddingHorizontal: Spacing.threeHalf,
   },
   // Figma tile: 82 px of text, 12 × 14 padding, 4 gap, 20 corners; each tile as tall as its text.
   tile: {
-    width: 106,
+    flex: 1,
     gap: Spacing.one,
     paddingHorizontal: Spacing.twoThreeQuarters,
     paddingVertical: Spacing.threeLess,

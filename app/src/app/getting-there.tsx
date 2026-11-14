@@ -3,6 +3,7 @@ import { router } from 'expo-router';
 import { ScrollView, StyleSheet, View, type ViewInstance } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SvgXml } from 'react-native-svg';
 
 import { MapArt } from '@/components/event/map-art';
 import { ZoomableMap } from '@/components/map/zoomable-map';
@@ -10,12 +11,14 @@ import { OptionCard } from '@/components/events/option-card';
 import { TransitChips } from '@/components/events/transit-chips';
 import { ThemedText } from '@/components/themed-text';
 import { Icon } from '@/components/ui/icon';
-import { Avatar, Notice } from '@/components/ui/parts';
+import { Avatar } from '@/components/ui/parts';
 import { ScreenHeader } from '@/components/ui/screen-header';
 import { ScreenInsight } from '@/components/earthy/insight';
 import { TabBar } from '@/components/ui/tab-bar';
 import { Tappable } from '@/components/ui/tappable';
 import { Skeleton } from '@/components/ui/skeleton';
+import { FigmaLines } from '@/constants/figma-lines';
+import { guardianLockXml } from '@/constants/rides-art';
 import { Radius, Spacing, TabBarHeight } from '@/constants/theme';
 import { CARPOOL_DRIVERS, SAMPLE_GUARDIAN, SAMPLE_USER } from '@/data/events.sample';
 import { feedback } from '@/feedback';
@@ -45,6 +48,7 @@ export default function GettingThereRoute() {
       detail={transitOnly ? 'Off for this cleanup' : 'Leave 6:20 · 18 min · free'}
       best={transitOnly ? undefined : '· free · 18 min'}
       off={transitOnly}
+      tight
       trailing={
         transitOnly ? undefined : (
           <View style={styles.drivers} accessible={false}>
@@ -138,7 +142,7 @@ export default function GettingThereRoute() {
           <View style={[styles.grabber, { backgroundColor: theme.seatEmpty }]} />
           <View style={styles.hero}>
             <View style={styles.heroRow}>
-              <ThemedText type="heading" accessibilityRole="header">
+              <ThemedText type="heading" accessibilityRole="header" style={styles.heroTitle}>
                 Be there by 6:45 AM
               </ThemedText>
               <View style={[styles.traffic, { backgroundColor: theme.trafficFill }]}>
@@ -148,21 +152,33 @@ export default function GettingThereRoute() {
                 </ThemedText>
               </View>
             </View>
-            <ThemedText type="note" themeColor="textWeak">
+            <ThemedText type="note" themeColor="textWeak" style={FigmaLines.l20}>
               {transitOnly ? 'Leave 5:50 by Metro + bus' : '3 ways to get there · latest you can leave is 6:25'}
             </ThemedText>
           </View>
 
           {transitOnly && (
-            <Notice tone="warning" icon="lock" text={`${SAMPLE_GUARDIAN.name} chose public transport for this one`} />
+            // Figma T14 "Guardian line": opens T12, the trusted drivers an under-18 can ride with.
+            <Tappable
+              accessibilityRole="button"
+              accessibilityLabel={`${SAMPLE_GUARDIAN.name} chose public transport for this one. See trusted drivers`}
+              onPress={() => router.push('/rides')}
+              style={[styles.guardian, { backgroundColor: theme.secondarySubtle }]}>
+              <View style={styles.guardianIcon}>
+                <SvgXml xml={guardianLockXml(theme.textSecondary)} width={11.6} height={11.85} />
+              </View>
+              <ThemedText type="chip" themeColor="textSecondary" style={styles.flex}>
+                {`${SAMPLE_GUARDIAN.name} chose public transport for this one`}
+              </ThemedText>
+            </Tappable>
           )}
 
           <View style={styles.from}>
-            <ThemedText type="labelSmall" themeColor="textWeak">
+            <ThemedText type="labelSmall" themeColor="textWeak" style={FigmaLines.l20}>
               {`From ${SAMPLE_USER.home} · your home`}
             </ThemedText>
             {/* Choosing another starting point isn't designed yet. */}
-            <ThemedText type="bodyMedium" themeColor="brand">
+            <ThemedText type="bodyMedium" themeColor="brand" style={FigmaLines.l20}>
               Change
             </ThemedText>
           </View>
@@ -239,6 +255,27 @@ const styles = StyleSheet.create({
     width: 7,
     height: 7,
     borderRadius: 4,
+  },
+  // Figma T1 and T14 use "normal" line heights in the hero (24 → 36, 13 → 20).
+  heroTitle: {
+    lineHeight: 36,
+  },
+  guardian: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+    paddingStart: Spacing.twoHalf,
+    paddingEnd: Spacing.twoThreeQuarters,
+    paddingVertical: Spacing.two,
+    borderRadius: Radius.small,
+  },
+  // The 10 px lock is drawn with its 1.6 stroke outside the box, so the slot stays 10 wide.
+  guardianIcon: {
+    width: 10,
+    alignItems: 'center',
+  },
+  flex: {
+    flex: 1,
   },
   from: {
     flexDirection: 'row',

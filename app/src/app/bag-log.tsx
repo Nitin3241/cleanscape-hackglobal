@@ -11,6 +11,7 @@ import { ThemedText } from '@/components/themed-text';
 import { Button } from '@/components/ui/button';
 import { Tappable } from '@/components/ui/tappable';
 import { SHEET_EASING } from '@/constants/motion';
+import { floatingSheetEdge } from '@/constants/sheet-edge';
 import { Motion, Radius, Spacing } from '@/constants/theme';
 import { BAG, FULLNESS, type Fullness } from '@/data/bag-log.sample';
 import { feedback } from '@/feedback';
@@ -41,7 +42,7 @@ export default function BagLogRoute() {
 
       <Animated.View
         entering={SlideInDown.duration(Motion.transition.sheet.duration).easing(SHEET_EASING)}
-        style={[styles.sheet, { backgroundColor: theme.card, bottom: Math.max(insets.bottom, Spacing.two) }]}>
+        style={[styles.sheet, { backgroundColor: theme.card, ...floatingSheetEdge(insets.bottom) }]}>
         <View style={[styles.grabber, { backgroundColor: theme.strokeChip }]} />
         <View style={styles.head}>
           <EarthyOrb size={24} state="still" glow={false} />

@@ -1,4 +1,4 @@
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 
 import { VoiceSheet } from '@/components/earthy/voice-sheet';
 
@@ -7,12 +7,17 @@ import { VoiceSheet } from '@/components/earthy/voice-sheet';
  * It's the same voice sheet as Home's Earthy button, opening straight at full height.
  */
 export default function EarthyVoiceRoute() {
+  // LIVE: a question tapped on Earthy home arrives here and is answered out loud.
+  const { ask } = useLocalSearchParams<{ ask?: string }>();
   return (
     <VoiceSheet
       startFullScreen
-      onLeave={(path) => router.replace(path)}
+      ask={ask}
+      // Close and Type go back to the Earthy screen underneath. Replacing it would stack a second copy,
+      // so the down arrow there had to be tapped twice.
+      onLeave={(path) => (path === '/earthy' && router.canGoBack() ? router.back() : router.replace(path))}
       onClose={() => (router.canGoBack() ? router.back() : router.replace('/earthy'))}
-      onBook={(id) => router.replace({ pathname: '/event-detail', params: { id } })}
+      onBook={() => router.replace({ pathname: '/earthy-chat', params: { start: 'next' } })}
     />
   );
 }

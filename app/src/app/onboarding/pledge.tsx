@@ -74,14 +74,7 @@ export default function PledgeRoute() {
     <OnboardingScreen
       top={120}
       scrollable={false}
-      footer={
-        <Button
-          label="I pledge"
-          size="large"
-          disabled={!pledged}
-          onPress={() => router.push('/onboarding/location')}
-        />
-      }>
+      footer={<Button label="I pledge" size="large" disabled={!pledged} onPress={() => router.push('/onboarding/location')} />}>
       <ThemedText type="heading" accessibilityRole="header" style={styles.centred}>
         Make your pledge
       </ThemedText>
@@ -103,12 +96,12 @@ export default function PledgeRoute() {
           style={[styles.pad, { backgroundColor: theme.card, borderColor: theme.strokeWeak }]}>
           {!started && (
             <View pointerEvents="none" style={styles.hint}>
-              <ThemedText type="hint" themeColor="textWeak">
+              <ThemedText type="hint" themeColor="strokeStrong">
                 Draw a tick here
               </ThemedText>
             </View>
           )}
-          <Svg pointerEvents="none" style={StyleSheet.absoluteFill}>
+          <Svg pointerEvents="none" width="100%" height="100%" style={StyleSheet.absoluteFill}>
             <AnimatedPath
               animatedProps={strokeProps}
               fill="none"
@@ -139,17 +132,19 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
   },
   pad: {
-    marginTop: Spacing.four,
+    marginTop: Spacing.five,
     height: 240,
     overflow: 'hidden',
     borderWidth: 1,
     borderStyle: 'dashed',
     borderRadius: Radius.panel,
   },
+  // Figma Onb 08a sits the hint 3 px above the pad's centre (y 107 of 240).
   hint: {
     ...StyleSheet.absoluteFill,
     alignItems: 'center',
     justifyContent: 'center',
+    paddingBottom: Spacing.oneHalf,
   },
   clear: {
     marginTop: Spacing.threeLess,

@@ -16,6 +16,7 @@ import { Tappable } from '@/components/ui/tappable';
 import { TextButton } from '@/components/ui/text-button';
 import { SHEET_EASING } from '@/constants/motion';
 import { scanBracketsXml, scanShutterXml } from '@/constants/plastic-art';
+import { floatingSheetEdge } from '@/constants/sheet-edge';
 import { Fonts, Motion, Radius, Shadows, Spacing } from '@/constants/theme';
 import { BIN_LABEL, PIZZA } from '@/data/waste.sample';
 import { feedback } from '@/feedback';
@@ -157,8 +158,10 @@ export function Sheet({ children, peek = false, height }: { children: React.Reac
       entering={peek ? FadeIn.duration(200) : SlideInDown.duration(Motion.transition.sheet.duration).easing(SHEET_EASING)}
       style={[
         styles.sheet,
-        { backgroundColor: theme.card, bottom: Math.max(insets.bottom, Spacing.two) },
-        height !== undefined && { height, gap: 0 },
+        { backgroundColor: theme.card, ...floatingSheetEdge(insets.bottom) },
+        // Only the short "looking" peek keeps a fixed height. A result sheet is as tall as its content, so on
+        // a taller phone it doesn't cover the item that was scanned (Figma's 500 was drawn for an 800 px frame).
+        height !== undefined && (peek ? { height, gap: 0 } : { gap: 0 }),
       ]}>
       <View style={[styles.grabber, { backgroundColor: theme.strokeControl }]} />
       {children}
@@ -556,8 +559,9 @@ const styles = StyleSheet.create({
   reward: {
     marginTop: 18,
   },
+  // The main button takes the room that's left beside "Find bins", so the row spans the sheet.
   binned: {
-    width: 196,
+    flex: 1,
   },
   resultThumb: {
     width: 52,
@@ -588,7 +592,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.threeLess,
-    marginTop: 'auto',
+    marginTop: Spacing.four,
     marginBottom: Spacing.twoThreeQuarters,
   },
   tickRow: {

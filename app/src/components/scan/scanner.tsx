@@ -1,7 +1,8 @@
+import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Image, type ImageSource } from 'expo-image';
 import { router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { ReactNode, useState } from 'react';
+import { ReactNode, useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -15,6 +16,11 @@ type ScannerProps = {
    * camera. A custom build would put expo-camera's CameraView here and call onScan from it.
    */
   feed: ImageSource;
+  /**
+   * LIVE: show the phone's real camera instead of the still photo, and make the torch button switch the light.
+   * Until the camera is allowed (or if it is refused) the still photo stays, so the screen is never blank.
+   */
+  live?: boolean;
   title?: string;
   subtitle?: string;
   /** Replaces the title, such as Earthy Lens's spoken question. */
@@ -22,6 +28,8 @@ type ScannerProps = {
   /** Content under the top bar, such as the check-in progress. */
   header?: ReactNode;
   onClose?: () => void;
+  /** Replaces the close button's X, such as Earthy Lens's down chevron (F9v2·3). */
+  closeArt?: ReactNode;
   /** Hides the torch where Figma has none (F5·1 bag sticker). */
   torch?: boolean;
   /** Everything drawn over the feed: scan frame, labels, sheets. */
@@ -35,25 +43,37 @@ type ScannerProps = {
  */
 export function Scanner({
   feed,
+  live = false,
   title,
   subtitle,
   center,
   header,
   onClose = () => router.back(),
+  closeArt,
   torch: showTorch = true,
   children,
 }: ScannerProps) {
   const insets = useSafeAreaInsets();
   const [torch, setTorch] = useState(false);
+  const [permission, requestPermission] = useCameraPermissions();
+  const camera = live && permission?.granted === true;
+
+  useEffect(() => {
+    if (live && permission && !permission.granted && permission.canAskAgain) requestPermission();
+  }, [live, permission, requestPermission]);
 
   return (
     <View style={styles.screen}>
       <StatusBar style="light" />
-      <Image source={feed} style={StyleSheet.absoluteFill} contentFit="cover" accessible={false} />
+      {camera ? (
+        <CameraView style={StyleSheet.absoluteFill} facing="back" enableTorch={torch} />
+      ) : (
+        <Image source={feed} style={StyleSheet.absoluteFill} contentFit="cover" accessible={false} />
+      )}
       {/* Figma scanners (F4·2, F4·7p, F4·9c): close and torch at y 52, 8 px under the status bar. */}
       <View style={[styles.top, { paddingTop: insets.top + Spacing.two }]}>
         <View style={styles.bar}>
-          <GlassButton icon="close" label="Close scanner" onPress={onClose} surface="brand" />
+          <GlassButton icon="close" art={closeArt} label="Close scanner" onPress={onClose} surface="brand" />
           <View style={styles.titles}>
             {center}
             {title && (

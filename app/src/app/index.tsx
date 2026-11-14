@@ -25,6 +25,9 @@ import { hasOnboarded } from '@/state/onboarded';
 const HOLD_TIME = 1000;
 const REDUCED_HOLD_TIME = 1200;
 const LIFT_DISTANCE = 16;
+// Figma 00 Splash: Earthy's top sits at y 250 of the 800 px frame, under a 44 px status bar.
+const FRAME_STATUS_BAR = 44;
+const FRAME_MASCOT_TOP = 250;
 
 /** First screen: Earthy breathes and blinks, then lifts away as the background settles. */
 export default function SplashRoute() {
@@ -40,9 +43,7 @@ export default function SplashRoute() {
   useEffect(() => {
     const hold = reducedMotion ? REDUCED_HOLD_TIME : HOLD_TIME;
     const duration = reducedMotion ? Motion.duration.fast : Motion.duration.slow;
-    leaving.set(
-      withDelay(hold, withTiming(1, { duration, easing: Easing.inOut(Easing.ease) })),
-    );
+    leaving.set(withDelay(hold, withTiming(1, { duration, easing: Easing.inOut(Easing.ease) })));
     // First launch goes to onboarding; a returning user goes straight to Home (Figma 00 Splash → out).
     const firstVisit = hasOnboarded().then((done) => !done);
     const timer = setTimeout(() => {
@@ -62,7 +63,7 @@ export default function SplashRoute() {
       <StatusBar style="dark" />
       <LinearGradient {...Gradients.splash} style={StyleSheet.absoluteFill} />
 
-      <Animated.View style={[styles.centre, contentStyle]}>
+      <Animated.View style={[styles.centre, { paddingTop: insets.top + FRAME_MASCOT_TOP - FRAME_STATUS_BAR }, contentStyle]}>
         <Mascot size={168} alive />
         <ThemedText type="splashLine" style={styles.line}>
           A cleaner UAE starts with you
@@ -72,8 +73,7 @@ export default function SplashRoute() {
         </ThemedText>
       </Animated.View>
 
-      <Animated.View
-        style={[styles.wordmark, { bottom: Math.max(insets.bottom, 58) }, contentStyle]}>
+      <Animated.View style={[styles.wordmark, { bottom: Math.max(insets.bottom, 58) }, contentStyle]}>
         <Logomark size={28} />
         <ThemedText type="wordmark" themeColor="brand">
           CleanScape
@@ -84,10 +84,7 @@ export default function SplashRoute() {
         </ThemedText>
       </Animated.View>
 
-      <Animated.View
-        pointerEvents="none"
-        style={[StyleSheet.absoluteFill, { backgroundColor: theme.background }, settleStyle]}
-      />
+      <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: theme.background }, settleStyle]} />
     </View>
   );
 }
@@ -96,7 +93,6 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
     alignItems: 'center',
-    justifyContent: 'center',
   },
   centre: {
     alignItems: 'center',

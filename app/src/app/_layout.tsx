@@ -42,6 +42,7 @@ const SHEETS = [
   'scan-fix',
   'earthy-source',
   'earthy-ask',
+  'earthy-start',
   'class-found',
   'class-invite',
   'waste-emirate',
@@ -93,13 +94,16 @@ export default function RootLayout() {
             <Stack.Screen name="index" options={{ animation: 'none' }} />
             <Stack.Screen name="onboarding" options={{ animation: 'fade' }} />
             <Stack.Screen name="home" options={TAB_ROOT} />
-            <Stack.Screen name="event-map" options={{ presentation: 'modal', ...SLIDE_IN }} />
-            <Stack.Screen name="wallet-pass" options={{ presentation: 'modal', ...SLIDE_IN }} />
+            <Stack.Screen name="event-map" options={{ presentation: 'fullScreenModal', ...SLIDE_IN }} />
+            <Stack.Screen name="wallet-pass" options={{ presentation: 'fullScreenModal', ...SLIDE_IN }} />
             <Stack.Screen name="crew-scan" options={{ animation: 'fade' }} />
             <Stack.Screen name="waste-scan" options={{ presentation: 'fullScreenModal', ...SLIDE_IN }} />
             <Stack.Screen name="bag-log" options={{ presentation: 'fullScreenModal', ...SLIDE_IN }} />
             <Stack.Screen name="bag-weigh" options={{ presentation: 'fullScreenModal', ...SLIDE_IN }} />
-            <Stack.Screen name="earthy" options={{ presentation: 'modal', ...SLIDE_IN }} />
+            <Stack.Screen name="earthy" options={{ presentation: 'fullScreenModal', ...SLIDE_IN }} />
+            {/* Full screen, as in Figma. A plain 'modal' showed Earthy, the map and the pass as iOS page sheets. */}
+            <Stack.Screen name="earthy-show" options={{ presentation: 'fullScreenModal', ...SLIDE_IN }} />
+            <Stack.Screen name="earthy-live" options={{ presentation: 'fullScreenModal', ...SLIDE_IN }} />
             <Stack.Screen name="earthy-lens" options={{ presentation: 'fullScreenModal', ...SLIDE_IN }} />
             <Stack.Screen name="earthy-voice" options={SHEET_OPTIONS} />
             {/* Spot it is a step in the Host flow (Figma: push from the radar), not a modal. As a modal, iOS presented

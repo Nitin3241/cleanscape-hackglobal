@@ -1,16 +1,21 @@
 import type BottomSheet from '@gorhom/bottom-sheet';
+import {
+  RecordingPresets,
+  requestRecordingPermissionsAsync,
+  setAudioModeAsync,
+  useAudioPlayer,
+  useAudioPlayerStatus,
+  useAudioRecorder,
+} from 'expo-audio';
+import { Image } from 'expo-image';
+import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
+import * as Speech from 'expo-speech';
 import { ReactNode, useEffect, useMemo, useRef, useState } from 'react';
-import { BackHandler, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
-import Animated, {
-  useAnimatedStyle,
-  useReducedMotion,
-  useSharedValue,
-  withDelay,
-  withTiming,
-} from 'react-native-reanimated';
+import { BackHandler, Platform, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
+import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withDelay, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Svg, { Defs, Ellipse, RadialGradient, Stop, SvgXml } from 'react-native-svg';
+import Svg, { Defs, Ellipse, RadialGradient, Stop } from 'react-native-svg';
 
 import { VoiceMic } from '@/components/ask-earthy/voice-mic';
 import { EarthyOrb, type OrbState } from '@/components/earthy/earthy-orb';
@@ -26,11 +31,11 @@ import { Sheet } from '@/components/ui/sheet';
 import { Tappable } from '@/components/ui/tappable';
 import { TextButton } from '@/components/ui/text-button';
 import { Toast } from '@/components/ui/toast';
-import { listBeachXml } from '@/constants/events-art';
 import { Fonts, Radius, Spacing, type ThemeColor } from '@/constants/theme';
 import { LIVE_TIMING, LIVE_TURN } from '@/data/earthy.sample';
 import { feedback } from '@/feedback';
 import { useTheme } from '@/hooks/use-theme';
+import { askEarthy, type EarthyMessage, earthyIsLive, earthyVoiceUrl, lookEarthy, transcribeVoice } from '@/services/earthy-api';
 
 type Phase = 'listening' | 'thinking' | 'speaking';
 
@@ -40,14 +45,47 @@ const ORB = 180;
 const ORB_BOX = ORB * 1.8;
 const HEARD = LIVE_TURN.question.split(' ');
 const NOTICE_TIME = 2400;
+// LIVE: what the thinking steps say while the server works, and how fast the answer's words appear
+// so they roughly keep pace with the spoken voice.
+const LIVE_STEPS = ['Hearing your question', 'Finding the answer'];
+const PHOTO_STEPS = ['Looking at your photo'];
+const LIVE_WORD_TIME = 280;
+const LIVE_MAX_RECORDING = 15000;
+// LIVE: Earthy answers by itself once you stop talking. The mic level is checked a few times a second;
+// after speech has been heard, this much quiet ends the question. Levels are in dB (0 is the loudest).
+// Speech needs far less than music quality: one channel at 16 kHz is a small file, quick to send and to read.
+const LIVE_RECORDING = { ...RecordingPresets.HIGH_QUALITY, sampleRate: 16000, numberOfChannels: 1, bitRate: 32000, isMeteringEnabled: true };
+const LEVEL_CHECK = 150;
+const SPEECH_LEVEL = -50;
+// Speech is at least this much louder than the room, in dB.
+const SPEECH_RISE = 9;
+// The room's level is the value this far up the sorted levels heard so far (0.35 = just below the middle).
+const ROOM_SHARE = 0.35;
+// A voice holds its level; a clink or a door doesn't. This many checks in a row must be loud to count as speech.
+const SPEECH_CHECKS = 2;
+// With no level reading from the microphone, listen this long and then send.
+const NO_LEVEL_LISTEN = 6000;
+const QUIET_TIME = 900;
+// LIVE: a conversation, not single questions. When Earthy finishes speaking it listens again by itself.
+// If nothing is said for this long, it stops listening and waits for a tap.
+const FOLLOW_UP_WAIT = 7000;
+const RECORD_FAILED = "I couldn't record that. Tap anywhere to try again.";
+const SERVER_DOWN = "I can't reach Earthy's server right now, so I won't guess. Check your connection and try again.";
+// Where each phase's words start below the full layout's top (F9v2·2 y 372, 2a y 300, 2b y 190).
+// LIVE gives the orb more air: 32 px between it and "Thinking" (Figma's 6 let the orb's glow touch the label),
+// and 24 px above "Earthy is speaking".
+const LIVE_CONTENT_TOP: Record<Phase, number> = { listening: 328, thinking: 282, speaking: 152 };
+const CONTENT_TOP: Record<Phase, number> = { listening: 328, thinking: 256, speaking: 146 };
 
 type VoiceSheetProps = {
   /** Called once the sheet has fully closed. */
   onClose: () => void;
-  /** Book on the answer card. */
+  /** Book on the answer card: Figma links it to F9v2·5, the chat's "next clean-up" thread. */
   onBook: (eventId: string) => void;
   /** Open straight in the full-screen layout (F9v2·2), as the chat screens' Full screen button does. */
   startFullScreen?: boolean;
+  /** LIVE: a question already asked by tapping it. Earthy skips listening and answers it out loud. */
+  ask?: string;
   /** Show or Type when the sheet is its own route: replace it rather than close it and push. */
   onLeave?: (path: '/earthy' | '/earthy-lens') => void;
 };
@@ -56,9 +94,11 @@ type VoiceSheetProps = {
  * Talking to Earthy (F9v2·0, 2, 2a, 2b) in ONE bottom sheet. It opens at 62% already listening.
  * Full screen, or the start of thinking, snaps it to 100%. The two layouts crossfade with the
  * sheet's position while the orb scales and moves, so there is no new screen and no grey flash.
- * SAMPLE: the conversation is scripted and no audio is recorded.
+ * LIVE (EXPO_PUBLIC_EARTHY_API_URL set): the phone records the question, the server on Vultr turns it
+ * into text and asks the model, and the phone reads the answer aloud with its built-in voice.
+ * SAMPLE (no server address): the conversation is scripted and no audio is recorded.
  */
-export function VoiceSheet({ onClose, onBook, startFullScreen = false, onLeave }: VoiceSheetProps) {
+export function VoiceSheet({ onClose, onBook, startFullScreen = false, onLeave, ask }: VoiceSheetProps) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
@@ -68,25 +108,410 @@ export function VoiceSheet({ onClose, onBook, startFullScreen = false, onLeave }
   const snapPoints = useMemo(() => [Math.round(height * QUICK_SHARE), height], [height]);
   const position = useSharedValue(0);
   const [expanded, setExpanded] = useState(false);
-  const [phase, setPhase] = useState<Phase>('listening');
+  // A tapped question opens straight on Thinking: the mic never opens, so Listening is never shown for it.
+  const [phase, setPhase] = useState<Phase>(earthyIsLive && ask ? 'thinking' : 'listening');
   const [heard, setHeard] = useState(0);
   const [stepsDone, setStepsDone] = useState(0);
   const [answered, setAnswered] = useState(false);
   const [muted, setMuted] = useState(false);
   const [language, setLanguage] = useState<VoiceLanguage>('en');
   const [notice, setNotice] = useState<string | null>(null);
+  // LIVE voice: one recorder for the sheet's life. `turn` cancels answers that arrive after a restart.
+  const live = earthyIsLive;
+  const recorder = useAudioRecorder(LIVE_RECORDING);
+  // 0 to 1 mic level, so the orb moves with the speaker's voice.
+  const micLevel = useSharedValue(0);
+  const recording = useRef(false);
+  const turn = useRef(0);
+  // What has been said so far, so a follow-up ("and the lid?") is understood. Cleared when the sheet closes.
+  const history = useRef<EarthyMessage[]>([]);
+  // True when Earthy started listening by itself after an answer, and not because of a tap.
+  const followUp = useRef(false);
+  // True while answering a question that was tapped on Earthy home rather than spoken.
+  const [tapped, setTapped] = useState(Boolean(earthyIsLive && ask));
+  // The photo taken with Show, for the turn it belongs to.
+  const [photo, setPhoto] = useState<string | null>(null);
+  const [liveQuestion, setLiveQuestion] = useState(earthyIsLive && ask ? ask : '');
+  const [liveAnswer, setLiveAnswer] = useState('');
+
+  // Earthy's own voice (text to speech on Vultr) plays here. `afterVoice` runs once it has finished.
+  const player = useAudioPlayer();
+  const playerStatus = useAudioPlayerStatus(player);
+  const afterVoice = useRef<(() => void) | null>(null);
+  // Backup for the end of the voice, in case the player doesn't report that it finished.
+  const voiceEnd = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // How long each word of the answer takes to light up, so the words keep pace with the voice.
+  const [wordTime, setWordTime] = useState(LIVE_WORD_TIME);
+
+  function voiceFinished() {
+    if (voiceEnd.current) clearTimeout(voiceEnd.current);
+    voiceEnd.current = null;
+    const next = afterVoice.current;
+    afterVoice.current = null;
+    next?.();
+  }
+
+  /** Loads a sound into the player and waits until its length is known. Returns the length in seconds (0 if unknown). */
+  async function loadVoice(url: string) {
+    player.replace({ uri: url });
+    const started = Date.now();
+    while (Date.now() - started < 4000) {
+      if (player.isLoaded && player.duration > 0) return player.duration;
+      await new Promise((resolve) => setTimeout(resolve, 80));
+    }
+    return 0;
+  }
+
+  function hush() {
+    afterVoice.current = null;
+    if (voiceEnd.current) clearTimeout(voiceEnd.current);
+    voiceEnd.current = null;
+    Speech.stop();
+    try {
+      player.pause();
+    } catch {
+      // The player may already be gone when the sheet closes.
+    }
+  }
+
+  /**
+   * Reads a line aloud in Earthy's voice, or in the phone's own voice if the server's isn't available.
+   * `ready` is a sound that was fetched ahead, so the words and the voice can start together; `null`
+   * means go straight to the phone's voice (for example when the server itself is down).
+   */
+  async function say(text: string, language: 'en' | 'ar', then?: () => void, ready?: string | null, length = 0) {
+    const id = turn.current;
+    hush();
+    try {
+      if (ready === null) throw new Error('Use the phone voice');
+      let seconds = length;
+      if (ready === undefined) {
+        const url = await earthyVoiceUrl(text);
+        if (id !== turn.current) return;
+        seconds = await loadVoice(url);
+        if (id !== turn.current) return;
+      }
+      afterVoice.current = then ?? null;
+      player.play();
+      if (seconds > 0) voiceEnd.current = setTimeout(voiceFinished, seconds * 1000 + 700);
+    } catch {
+      if (id !== turn.current) return;
+      const arabic = Platform.OS === 'ios' ? 'ar-001' : 'ar';
+      Speech.speak(text, { language: language === 'ar' ? arabic : 'en-US', onDone: then });
+    }
+  }
+
+  useEffect(() => {
+    if (playerStatus.didJustFinish) voiceFinished();
+    // Runs when the player reports the end of the sound.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [playerStatus.didJustFinish]);
+
+  async function startListening(afterAnswer = false) {
+    const id = ++turn.current;
+    followUp.current = afterAnswer;
+    setTapped(false);
+    setPhoto(null);
+    hush();
+    setLiveQuestion('');
+    setLiveAnswer('');
+    setStepsDone(0);
+    setAnswered(false);
+    setMuted(false);
+    setPhase('listening');
+    try {
+      const permission = await requestRecordingPermissionsAsync();
+      if (!permission.granted) {
+        setMuted(true);
+        setNotice('Allow the microphone in Settings to talk to Earthy');
+        return;
+      }
+      await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
+      await recorder.prepareToRecordAsync();
+      if (id !== turn.current) return;
+      recorder.record();
+      recording.current = true;
+    } catch {
+      setMuted(true);
+      setNotice('Earthy can’t use the microphone right now');
+    }
+  }
+
+  async function finishListening() {
+    if (!recording.current) return;
+    recording.current = false;
+    const id = ++turn.current;
+    setStepsDone(0);
+    setPhase('thinking');
+    let uri: string | null = null;
+    try {
+      await recorder.stop();
+      // Back to playback, so the answer comes out of the speaker and not the earpiece.
+      await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true });
+      uri = recorder.uri;
+    } catch {
+      uri = null;
+    }
+    if (id !== turn.current) return;
+    if (!uri) {
+      setLiveAnswer(RECORD_FAILED);
+      setPhase('speaking');
+      say(RECORD_FAILED, 'en', undefined, null);
+      return;
+    }
+    try {
+      const heardVoice = await transcribeVoice(uri);
+      if (id !== turn.current) return;
+      if (!heardVoice.text) {
+        // Nothing but room noise after an answer: stop quietly and wait for a tap, instead of asking again.
+        if (followUp.current) {
+          setPhase('listening');
+          setMuted(true);
+          return;
+        }
+        setNotice('I didn’t catch that. Try again');
+        startListening();
+        return;
+      }
+      await answer(heardVoice.text, heardVoice.language, id);
+    } catch {
+      if (id !== turn.current) return;
+      // Honest failure: say so instead of making an answer up.
+      setLiveAnswer(SERVER_DOWN);
+      setPhase('speaking');
+      say(SERVER_DOWN, 'en', undefined, null);
+    }
+  }
+
+  /** Shows the question, asks the model and reads the answer out. Throws if the server can't be reached. */
+  async function answer(text: string, language: 'en' | 'ar', id: number, photoUri?: string) {
+    setLiveQuestion(text);
+    setStepsDone(1);
+    const question: EarthyMessage = { role: 'user', content: photoUri ? `(Showed a photo) ${text}` : text };
+    // A photo goes to the model that can see. Otherwise `true` says the answer will be read aloud, so the
+    // server keeps it to a sentence or two (quicker to voice).
+    const reply = photoUri ? await lookEarthy(photoUri, text) : await askEarthy([...history.current, question], true);
+    if (id !== turn.current) return;
+    history.current = [...history.current, question, { role: 'assistant', content: reply }];
+    // Fetch the voice before showing the answer, so the words and the voice begin together.
+    // Without this the text appeared first and the voice came in a few seconds later.
+    //
+    // To start speaking sooner, only the FIRST sentence is voiced before Earthy starts. The rest is voiced at
+    // the same time and plays straight after. A built-in question's answer is already voiced on the server,
+    // whole, so that is asked for first.
+    let voice: string | null = null;
+    let seconds = 0;
+    let spokenFirst = reply;
+    let rest: Promise<string | null> | null = null;
+    try {
+      try {
+        voice = await earthyVoiceUrl(reply, true);
+      } catch {
+        const [first, tail] = firstSentence(reply);
+        spokenFirst = first;
+        rest = tail ? earthyVoiceUrl(tail).catch(() => null) : null;
+        voice = await earthyVoiceUrl(first);
+      }
+      if (id !== turn.current) return;
+      // Load the sound now and read its length, so each word lights up as it is spoken.
+      seconds = await loadVoice(voice);
+    } catch {
+      voice = null;
+      rest = null;
+    }
+    if (id !== turn.current) return;
+    setWordTime(seconds > 0 ? (seconds * 1000) / spokenFirst.split(' ').length : LIVE_WORD_TIME);
+    setLiveAnswer(reply);
+    setPhase('speaking');
+    // Keep the conversation going: once the answer has been read out, listen for a follow-up.
+    const done = () => {
+      if (id === turn.current) startListening(true);
+    };
+    const thenRest = async () => {
+      const next = rest ? await rest : null;
+      if (id !== turn.current) return;
+      if (!next) {
+        done();
+        return;
+      }
+      const length = await loadVoice(next);
+      if (id !== turn.current) return;
+      afterVoice.current = done;
+      player.play();
+      if (length > 0) voiceEnd.current = setTimeout(voiceFinished, length * 1000 + 700);
+    };
+    say(reply, language, voice ? thenRest : done, voice, seconds);
+  }
+
+  /** Show: opens the scan screen (live camera, frame, shutter, result). The mic is closed while it is open. */
+  function openCamera() {
+    turn.current += 1;
+    hush();
+    if (recording.current) {
+      recording.current = false;
+      recorder.stop().catch(() => {});
+    }
+    // Back from the camera, the voice screen waits: Unmute starts listening again.
+    setPhoto(null);
+    setPhase('listening');
+    setMuted(true);
+    router.push('/earthy-show');
+  }
+
+  /**
+   * Show without the scan screen (kept as a fallback): take a photo with the phone's own camera and Earthy says what it is and where it goes, out loud. The photo is sent to
+   * the server for this one answer and is not kept.
+   */
+  async function showItem() {
+    hush();
+    const id = ++turn.current;
+    if (recording.current) {
+      recording.current = false;
+      await recorder.stop().catch(() => {});
+    }
+    try {
+      const permission = await ImagePicker.requestCameraPermissionsAsync();
+      if (!permission.granted) {
+        setMuted(true);
+        setNotice('Allow the camera in Settings to show Earthy an item');
+        return;
+      }
+      const shot = await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.4 });
+      if (id !== turn.current) return;
+      const uri = shot.canceled ? undefined : shot.assets[0]?.uri;
+      if (!uri) {
+        // Camera closed without a photo: carry on listening.
+        startListening();
+        return;
+      }
+      setMuted(false);
+      setTapped(true);
+      setPhoto(uri);
+      setStepsDone(0);
+      setPhase('thinking');
+      await answer('What is this, and where does it go?', 'en', id, uri);
+    } catch {
+      if (id !== turn.current) return;
+      setLiveAnswer(SERVER_DOWN);
+      setPhase('speaking');
+      say(SERVER_DOWN, 'en', undefined, null);
+    }
+  }
+
+  /** A question tapped on Earthy home: no listening, straight to the answer. */
+  async function answerAsked(text: string) {
+    const id = ++turn.current;
+    setTapped(true);
+    setPhoto(null);
+    setStepsDone(0);
+    setPhase('thinking');
+    try {
+      await answer(text, /[\u0600-\u06FF]/.test(text) ? 'ar' : 'en', id);
+    } catch {
+      if (id !== turn.current) return;
+      setLiveAnswer(SERVER_DOWN);
+      setPhase('speaking');
+      say(SERVER_DOWN, 'en', undefined, null);
+    }
+  }
+
+  // LIVE: nobody answered Earthy's follow-up listening, so stop the mic and wait for a tap on Unmute.
+  function pauseListening() {
+    turn.current += 1;
+    if (recording.current) {
+      recording.current = false;
+      recorder.stop().catch(() => {});
+    }
+    setMuted(true);
+  }
+
+  function toggleMute() {
+    if (live && muted && !recording.current) {
+      startListening();
+      return;
+    }
+    if (live && recording.current) {
+      if (muted) recorder.record();
+      else recorder.pause();
+    }
+    setMuted((value) => !value);
+  }
 
   // Mount closed, then open once the sheet has measured itself: opening on mount doesn't animate reliably.
   useEffect(() => {
     feedback.play('voice.open');
     const timer = setTimeout(() => sheet.current?.snapToIndex(startFullScreen ? 1 : 0), 120);
-    return () => clearTimeout(timer);
+    if (live && ask) answerAsked(ask);
+    else if (live) startListening();
+    return () => {
+      clearTimeout(timer);
+      // Leaving the sheet drops any answer still on its way and stops the voice.
+      turn.current += 1;
+      hush();
+      if (recording.current) {
+        recording.current = false;
+        recorder.stop().catch(() => {});
+      }
+    };
     // Runs once on open; startFullScreen is fixed for the sheet's life.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // LIVE: listen to the mic level. The orb follows the voice, and once the speaker has said something
+  // and then gone quiet, the question is sent without a tap. A question also can't run past 30 s.
+  useEffect(() => {
+    if (!live || phase !== 'listening' || muted) return;
+    const started = Date.now();
+    let spoke = false;
+    let lastLoud = started;
+    // Every level heard in this turn. The room's own level (talk, traffic, music) is taken as the quieter part
+    // of them, and it is worked out again at every check, so it follows a room that is never silent. A voice
+    // close to the phone stands clearly above that; music across the room is the level itself, not above it.
+    const levels: number[] = [];
+    let metered = false;
+    let loud = 0;
+    const timer = setInterval(() => {
+      if (!recording.current) return;
+      const now = Date.now();
+      let level: number | undefined;
+      try {
+        level = recorder.getStatus().metering;
+      } catch {
+        level = undefined;
+      }
+      if (typeof level === 'number' && Number.isFinite(level)) {
+        metered = true;
+        levels.push(Math.max(level, -90));
+        const sorted = [...levels].sort((x, y) => x - y);
+        const room = sorted[Math.floor(sorted.length * ROOM_SHARE)];
+        micLevel.set(withTiming(Math.min(1, Math.max(0, (level - room) / 30)), { duration: LEVEL_CHECK }));
+        if (now - started > 450 && level > Math.max(room + SPEECH_RISE, SPEECH_LEVEL)) {
+          loud += 1;
+          if (loud >= SPEECH_CHECKS) {
+            spoke = true;
+            lastLoud = now;
+          }
+        } else {
+          loud = 0;
+        }
+      }
+      // No level from the microphone at all: it can't tell when the talking stops, so it listens for a fixed
+      // few seconds and then sends what it recorded.
+      const blind = !metered && now - started > NO_LEVEL_LISTEN;
+      if ((spoke && now - lastLoud > QUIET_TIME) || blind || now - started > LIVE_MAX_RECORDING) finishListening();
+      else if (metered && !spoke && followUp.current && now - started > FOLLOW_UP_WAIT) pauseListening();
+    }, LEVEL_CHECK);
+    return () => {
+      clearInterval(timer);
+      micLevel.set(withTiming(0, { duration: LEVEL_CHECK }));
+    };
+    // Restarts with each listening turn.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [live, phase, muted]);
+
   // The scripted turn moves itself along. Muting pauses the listening part.
   useEffect(() => {
+    if (live) return;
     if (phase === 'listening' && !muted) {
       if (heard < HEARD.length) {
         const timer = setTimeout(() => setHeard((count) => count + 1), LIVE_TIMING.heardWord);
@@ -103,7 +528,7 @@ export function VoiceSheet({ onClose, onBook, startFullScreen = false, onLeave }
       const timer = setTimeout(() => setPhase('speaking'), LIVE_TIMING.afterSteps);
       return () => clearTimeout(timer);
     }
-  }, [phase, heard, stepsDone, muted]);
+  }, [live, phase, heard, stepsDone, muted]);
 
   // The answer needs the room, so thinking opens the full layout.
   useEffect(() => {
@@ -142,6 +567,10 @@ export function VoiceSheet({ onClose, onBook, startFullScreen = false, onLeave }
   }
 
   function interrupt() {
+    if (live) {
+      startListening();
+      return;
+    }
     setHeard(0);
     setStepsDone(0);
     setAnswered(false);
@@ -178,10 +607,14 @@ export function VoiceSheet({ onClose, onBook, startFullScreen = false, onLeave }
   const fullStyle = useAnimatedStyle(() => ({ opacity: Math.min(1, Math.max(0, position.get() * 2 - 1)) }));
 
   const orbState: OrbState = muted ? 'still' : phase;
-  const steps: ThinkingStep[] = LIVE_TURN.steps
-    .slice(0, Math.min(stepsDone + 1, LIVE_TURN.steps.length))
-    .map((label, index) => ({ id: String(index), label, status: index < stepsDone ? 'done' : 'active' }));
-  const quickFooterTop = height * QUICK_SHARE - HANDLE - 56;
+  // A question that was tapped was never spoken, so "Hearing your question" is left out for it.
+  const skipped = live && tapped ? 1 : 0;
+  const stepLabels: readonly string[] = !live ? LIVE_TURN.steps : photo ? PHOTO_STEPS : LIVE_STEPS.slice(skipped);
+  const doneSteps = Math.max(stepsDone - skipped, 0);
+  const steps: ThinkingStep[] = stepLabels
+    .slice(0, Math.min(doneSteps + 1, stepLabels.length))
+    .map((label, index) => ({ id: String(index), label, status: index < doneSteps ? 'done' : 'active' }));
+  const quickFooterTop = height * QUICK_SHARE - HANDLE - 53;
 
   return (
     <Sheet
@@ -200,6 +633,14 @@ export function VoiceSheet({ onClose, onBook, startFullScreen = false, onLeave }
         {/* Full layout: listening, thinking and speaking with the call controls. */}
         <Animated.View pointerEvents={expanded ? 'box-none' : 'none'} style={[StyleSheet.absoluteFill, fullStyle]}>
           <BottomGlow height={height} />
+          {live && phase === 'listening' && !muted && (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Done speaking"
+              onPress={finishListening}
+              style={StyleSheet.absoluteFill}
+            />
+          )}
           {phase === 'speaking' && (
             <Pressable
               accessibilityRole="button"
@@ -208,47 +649,57 @@ export function VoiceSheet({ onClose, onBook, startFullScreen = false, onLeave }
               style={StyleSheet.absoluteFill}
             />
           )}
-          <View style={[styles.topBar, { top: Math.max(Spacing.two, fullTop + Spacing.three) }]}>
-            <View style={[styles.languagePill, { backgroundColor: theme.wellCool }]}>
-              <ThemedText type="small" accessibilityLabel="Language: English or Arabic, detected automatically">
-                EN · ع auto
-              </ThemedText>
-            </View>
+          <View style={[styles.topBar, { top: Math.max(Spacing.two, fullTop + Spacing.two) }]}>
             <Tappable
               accessibilityRole="button"
               accessibilityLabel="Close voice"
-              onPress={close}
-              style={[styles.round, { backgroundColor: theme.wellCool }]}>
-              <Icon name="close" size={20} color="textStrong" />
+              onPress={() => leaveTo('/earthy')}
+              style={[styles.round, { backgroundColor: theme.glassOnMap, borderColor: theme.strokeWeak }]}>
+              <Icon name="chevron-down" size={24} color="textStrong" />
             </Tappable>
+            <View style={[styles.languagePill, { backgroundColor: theme.tileNeutral }]}>
+              <ThemedText type="filterLabel" accessibilityLabel="Language: English or Arabic, detected automatically">
+                EN · ع auto
+              </ThemedText>
+            </View>
           </View>
 
           <View
             pointerEvents="box-none"
-            style={[styles.fullContent, { top: fullTop + (phase === 'speaking' ? 150 : 300) }]}>
+            style={[styles.fullContent, phase === 'speaking' && styles.fullContentWide, { top: fullTop + (live ? LIVE_CONTENT_TOP : CONTENT_TOP)[phase] }]}>
             {phase === 'listening' && (
-              <Fade key="listening" align="center">
-                <Status color="statusSuccess" label={muted ? 'Muted' : 'Listening'} />
-                <Words shown={heard} type="heading" />
+              <Fade key="listening" align="center" gap={Spacing.two}>
+                <Status color="statusSuccess" label={muted ? 'Muted' : 'Listening'} type="fieldLabel" />
+                {live ? <LivePrompt muted={muted} type="etaTitle" /> : <Words shown={heard} type="etaTitle" />}
+                {live && !muted && (
+                  <ThemedText type="meta" themeColor="textWeak" style={styles.centred}>
+                    Earthy answers when you stop talking, or tap anywhere
+                  </ThemedText>
+                )}
               </Fade>
             )}
             {phase === 'thinking' && (
-              <Fade key="thinking" align="center">
-                <Status color="secondary" label="Thinking" />
-                <ThemedText type="wheel" themeColor="textWeak" style={styles.centred}>
-                  {LIVE_TURN.question}
+              <Fade key="thinking" align="center" gap={Spacing.threeHalf}>
+                <Status color="secondary" label="Thinking" type="fieldLabel" />
+                {live && photo && <Image source={{ uri: photo }} contentFit="cover" style={styles.shown} accessibilityLabel="Your photo" />}
+                <ThemedText type="fieldValue" themeColor="textWeak" style={styles.centred}>
+                  {live ? liveQuestion : LIVE_TURN.question}
                 </ThemedText>
-                <View style={styles.steps}>
-                  <ThinkingSteps steps={steps} />
-                </View>
+                {/* The step list belongs to the scripted demo. Live, Earthy just thinks: it is quick, and a
+                    checklist made the wait feel longer. */}
+                {!live && (
+                  <View style={styles.steps}>
+                    <ThinkingSteps steps={steps} />
+                  </View>
+                )}
               </Fade>
             )}
             {phase === 'speaking' && (
-              <Fade key="speaking" align="start">
-                <Status color="brand" label="Earthy is speaking" />
+              <Fade key="speaking" align="start" gap={Spacing.threeHalf}>
+                <Status color="brand" label="Earthy is speaking" type="fieldLabel" />
                 <StreamingText
-                  text={LIVE_TURN.answer}
-                  msPerWord={LIVE_TIMING.spokenWord}
+                  text={live ? liveAnswer : LIVE_TURN.answer}
+                  msPerWord={live ? wordTime : LIVE_TIMING.spokenWord}
                   style={{ fontFamily: Fonts.semiBold, fontSize: 20, lineHeight: 28, color: theme.textStrong }}
                   onDone={() => {
                     setAnswered(true);
@@ -257,9 +708,10 @@ export function VoiceSheet({ onClose, onBook, startFullScreen = false, onLeave }
                 />
                 {answered && (
                   <>
-                    <ResultCard onBook={() => onBook(LIVE_TURN.result.eventId)} />
-                    <ThemedText type="small" themeColor="textWeak" style={[styles.centred, styles.interruptHint]}>
-                      Tap anywhere to interrupt
+                    {/* The result card belongs to the scripted turn; a live answer stands on its own. */}
+                    {!live && <ResultCard onBook={() => onBook(LIVE_TURN.result.eventId)} />}
+                    <ThemedText type="meta" themeColor="strokeStrong" style={[styles.centred, styles.interruptHint]}>
+                      {live ? 'Earthy listens again after answering' : 'Tap anywhere to interrupt'}
                     </ThemedText>
                   </>
                 )}
@@ -267,18 +719,15 @@ export function VoiceSheet({ onClose, onBook, startFullScreen = false, onLeave }
             )}
           </View>
 
-          <View style={[styles.controls, { bottom: insets.bottom + Spacing.three }]}>
+          <View style={[styles.controls, { bottom: insets.bottom + Spacing.four }]}>
             <View style={styles.controlRow}>
-              <Control
-                icon={muted ? 'mic' : 'mic-off'}
-                label={muted ? 'Unmute' : 'Mute'}
-                onPress={() => setMuted((value) => !value)}
-              />
-              <Control icon="scan-eye" label="Show" onPress={() => leaveTo('/earthy-lens')} />
+              {/* The icon shows the state: a mic while it is on, a struck-through mic on a solid circle once muted. */}
+              <Control icon={muted ? 'mic-off' : 'mic'} label={muted ? 'Unmute' : 'Mute'} active={muted} onPress={toggleMute} />
+              <Control icon="camera" label="Show" onPress={live ? openCamera : () => leaveTo('/earthy-lens')} />
               <Control icon="keyboard" label="Type" onPress={() => leaveTo('/earthy')} />
-              <Control icon="close" label="End" tone="endCall" onPress={close} />
+              <Control icon="close" label="End" tone="earthyDanger" onPress={close} />
             </View>
-            <ThemedText type="small" themeColor="textWeak" style={styles.centred}>
+            <ThemedText type="ticketCaption" themeColor="textWeak" style={styles.centred}>
               Earthy can make mistakes. Check event details.
             </ThemedText>
           </View>
@@ -290,30 +739,35 @@ export function VoiceSheet({ onClose, onBook, startFullScreen = false, onLeave }
             accessibilityRole="button"
             accessibilityLabel="Full screen voice"
             onPress={() => sheet.current?.snapToIndex(1)}
-            style={[styles.fullScreen, { backgroundColor: theme.fill }]}>
-            <Icon name="expand" size={14} color="brand" />
-            <ThemedText type="small" themeColor="brand">
+            style={[styles.fullScreen, { backgroundColor: theme.segmentWell }]}>
+            <Icon name="expand" size={14} color="brand" strokeWidth={1.8} />
+            <ThemedText type="dateline" themeColor="brand">
               Full screen
             </ThemedText>
           </Tappable>
-          <Tappable accessibilityRole="button" accessibilityLabel="Close" hitSlop={12} onPress={close} style={styles.quickClose}>
-            <Icon name="close" size={20} color="textWeak" />
+          <Tappable
+            accessibilityRole="button"
+            accessibilityLabel="Close"
+            hitSlop={6}
+            onPress={close}
+            style={[styles.quickClose, { backgroundColor: theme.tileNeutral }]}>
+            <Icon name="close" size={22} color="textWeak" strokeWidth={1.375} />
           </Tappable>
 
           <View style={styles.quickCopy}>
-            <Status color="statusSuccess" label={muted ? 'Muted' : 'Listening'} />
-            <Words shown={heard} type="transcript" />
+            <Status color="statusSuccess" label={muted ? 'Muted' : 'Listening'} type="body" />
+            {live ? <LivePrompt muted={muted} type="transcript" /> : <Words shown={heard} type="transcript" />}
           </View>
 
           <View style={styles.quickMic}>
             <VoiceMic
               state={phase === 'listening' && !muted ? 'listening' : 'done'}
               accessibilityLabel="Stop listening"
-              onPress={() => setHeard(HEARD.length)}
+              onPress={() => (live ? finishListening() : setHeard(HEARD.length))}
             />
           </View>
           <ThemedText type="caption" themeColor="textWeak" style={styles.quickHint}>
-            Tap to stop
+            {live ? 'Earthy answers when you stop talking' : 'Tap to stop'}
           </ThemedText>
 
           <View style={[styles.quickFooter, { top: quickFooterTop }]}>
@@ -324,11 +778,13 @@ export function VoiceSheet({ onClose, onBook, startFullScreen = false, onLeave }
 
         {/* One orb for both layouts. It moves and scales with the sheet. */}
         <Animated.View pointerEvents="none" style={[styles.orb, { left: width / 2 - ORB_BOX / 2 }, orbStyle]}>
-          <EarthyOrb state={orbState} size={ORB} />
+          <EarthyOrb state={orbState} size={ORB} level={live ? micLevel : undefined} />
         </Animated.View>
 
         {notice && (
-          <View pointerEvents="none" style={[styles.notice, { top: expanded ? height - insets.bottom - 240 : quickFooterTop - 64 }]}>
+          <View
+            pointerEvents="none"
+            style={[styles.notice, { top: expanded ? height - insets.bottom - 240 : quickFooterTop - 64 }]}>
             <Toast text={notice} />
           </View>
         )}
@@ -337,7 +793,13 @@ export function VoiceSheet({ onClose, onBook, startFullScreen = false, onLeave }
   );
 }
 
-function Fade({ align, children }: { align: 'center' | 'start'; children: ReactNode }) {
+/** Splits an answer into its first sentence and the rest ('' if it is one sentence). */
+function firstSentence(text: string): [string, string] {
+  const match = /^(.+?[.!?؟])\s+(\S.*)$/s.exec(text.trim());
+  return match ? [match[1], match[2]] : [text.trim(), ''];
+}
+
+function Fade({ align, gap, children }: { align: 'center' | 'start'; gap: number; children: ReactNode }) {
   const reducedMotion = useReducedMotion();
   const appear = useSharedValue(0);
   useEffect(() => {
@@ -348,18 +810,18 @@ function Fade({ align, children }: { align: 'center' | 'start'; children: ReactN
     transform: [{ translateY: reducedMotion ? 0 : (1 - appear.get()) * 8 }],
   }));
   return (
-    <Animated.View pointerEvents="box-none" style={[styles.phase, align === 'start' && styles.phaseStart, style]}>
+    <Animated.View pointerEvents="box-none" style={[styles.phase, { gap }, align === 'start' && styles.phaseStart, style]}>
       {children}
     </Animated.View>
   );
 }
 
-function Status({ color, label }: { color: ThemeColor; label: string }) {
+function Status({ color, label, type }: { color: ThemeColor; label: string; type: 'body' | 'fieldLabel' }) {
   const theme = useTheme();
   return (
     <View style={styles.status} accessibilityLiveRegion="polite">
       <View style={[styles.dot, { backgroundColor: theme[color] }]} />
-      <ThemedText type="hint" themeColor="textWeak">
+      <ThemedText type={type} themeColor="textWeak">
         {label}
       </ThemedText>
     </View>
@@ -367,16 +829,26 @@ function Status({ color, label }: { color: ThemeColor; label: string }) {
 }
 
 /** Words heard so far are dark. The rest of the sentence waits in grey. */
-function Words({ shown, type }: { shown: number; type: 'heading' | 'transcript' }) {
+function Words({ shown, type }: { shown: number; type: 'etaTitle' | 'transcript' }) {
   const theme = useTheme();
   const said = HEARD.slice(0, shown).join(' ');
   const rest = HEARD.slice(shown).join(' ');
   return (
     <ThemedText type={type} accessibilityLabel={said} style={styles.words}>
       <ThemedText type={type}>{said}</ThemedText>
-      <ThemedText type={type} style={{ color: theme.seatEmpty }}>
+      <ThemedText type={type} style={{ color: theme.earthyUnheard }}>
         {shown > 0 && rest ? ` ${rest}` : rest}
       </ThemedText>
+    </ThemedText>
+  );
+}
+
+/** LIVE: there are no scripted words to show, so the sheet asks for the question instead. */
+function LivePrompt({ muted, type }: { muted: boolean; type: 'etaTitle' | 'transcript' }) {
+  const theme = useTheme();
+  return (
+    <ThemedText type={type} style={[styles.words, { color: theme.earthyUnheard }]}>
+      {muted ? 'Tap Unmute to ask again' : 'Ask your question'}
     </ThemedText>
   );
 }
@@ -395,13 +867,12 @@ function ResultCard({ onBook }: { onBook: () => void }) {
   }));
 
   return (
-    <Animated.View style={[styles.card, style]}>
+    <Animated.View style={style}>
       <Card padding={Spacing.twoThreeQuarters} style={styles.cardRow}>
-        <View style={styles.thumb}>
-          <SvgXml xml={listBeachXml} width={104} height={56} style={styles.thumbArt} />
-        </View>
+        {/* Figma's own thumbnail image for the result card, cropped to a square. */}
+        <Image source={require('@/assets/images/voice-result-thumb.png')} contentFit="cover" style={styles.thumb} />
         <View style={styles.cardText}>
-          <ThemedText type="labelLarge" numberOfLines={1}>
+          <ThemedText type="labelMedium14" numberOfLines={1}>
             {LIVE_TURN.result.title}
           </ThemedText>
           <ThemedText type="meta" themeColor="textWeak">
@@ -413,7 +884,7 @@ function ResultCard({ onBook }: { onBook: () => void }) {
           accessibilityLabel={`Book ${LIVE_TURN.result.title}`}
           onPress={onBook}
           style={[styles.book, { backgroundColor: theme.brand }]}>
-          <ThemedText type="label" themeColor="textOnBrand">
+          <ThemedText type="labelSmall" themeColor="textOnBrand" style={styles.bookLabel}>
             Book
           </ThemedText>
         </Tappable>
@@ -422,14 +893,34 @@ function ResultCard({ onBook }: { onBook: () => void }) {
   );
 }
 
-function Control({ icon, label, tone, onPress }: { icon: IconName; label: string; tone?: ThemeColor; onPress: () => void }) {
+function Control({
+  icon,
+  label,
+  tone,
+  active = false,
+  onPress,
+}: {
+  icon: IconName;
+  label: string;
+  tone?: ThemeColor;
+  /** On: a solid brand circle with a white icon (Mute while muted). */
+  active?: boolean;
+  onPress: () => void;
+}) {
   const theme = useTheme();
+  const solid = tone ?? (active ? 'brand' : undefined);
   return (
-    <Tappable accessibilityRole="button" accessibilityLabel={label} onPress={onPress} style={styles.control}>
-      <View style={[styles.controlCircle, { backgroundColor: tone ? theme[tone] : theme.wellCool }]}>
-        <Icon name={icon} size={22} color={tone ? 'textOnBrand' : 'textStrong'} strokeWidth={1.75} />
+    <Tappable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ selected: active }}
+      onPress={onPress}
+      style={styles.control}>
+      {/* Brand-blue icons on the pale blue fill: clearer than the old dark-on-grey, and they match the app's buttons. */}
+      <View style={[styles.controlCircle, { backgroundColor: solid ? theme[solid] : theme.fill }]}>
+        <Icon name={icon} size={26} color={solid ? 'textOnBrand' : 'brand'} strokeWidth={2} />
       </View>
-      <ThemedText type="small">{label}</ThemedText>
+      <ThemedText type="filterLabel">{label}</ThemedText>
     </Tappable>
   );
 }
@@ -462,21 +953,29 @@ const styles = StyleSheet.create({
     height: ORB_BOX,
   },
   // Quick layout, from F9v2·0.
+  // Figma places the pill and the close 18 and 16 px below the sheet's top edge, inside the 24 px handle.
+  // The sheet clips anything above its content, so they sit at the top of the content instead.
   fullScreen: {
     position: 'absolute',
-    top: Spacing.one,
-    start: Spacing.three,
+    top: 0,
+    start: Spacing.four,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.oneHalf,
-    paddingHorizontal: Spacing.twoThreeQuarters,
-    paddingVertical: Spacing.oneHalf,
-    borderRadius: Radius.pill,
+    gap: Spacing.one,
+    paddingStart: Spacing.twoHalf,
+    paddingEnd: Spacing.twoThreeQuarters,
+    paddingVertical: 7,
+    borderRadius: Radius.option,
   },
   quickClose: {
     position: 'absolute',
-    top: Spacing.two,
-    end: 22,
+    top: 0,
+    end: Spacing.four,
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 16,
   },
   quickCopy: {
     position: 'absolute',
@@ -484,18 +983,18 @@ const styles = StyleSheet.create({
     start: 30,
     end: 30,
     alignItems: 'center',
-    gap: Spacing.half,
+    gap: Spacing.one,
   },
   quickMic: {
     position: 'absolute',
-    top: 220,
+    top: 240,
     start: 0,
     end: 0,
     alignItems: 'center',
   },
   quickHint: {
     position: 'absolute',
-    top: 364,
+    top: 384,
     start: 30,
     end: 30,
     textAlign: 'center',
@@ -503,7 +1002,7 @@ const styles = StyleSheet.create({
   quickFooter: {
     position: 'absolute',
     start: Spacing.four,
-    end: Spacing.four,
+    end: Spacing.five,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -528,15 +1027,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 20,
+    borderWidth: 1,
   },
   fullContent: {
     position: 'absolute',
-    start: Spacing.threeHalf,
-    end: Spacing.threeHalf,
+    start: 30,
+    end: 30,
+  },
+  fullContentWide: {
+    start: Spacing.four,
+    end: Spacing.four,
   },
   phase: {
     alignItems: 'center',
-    gap: Spacing.twoThreeQuarters,
   },
   phaseStart: {
     alignItems: 'stretch',
@@ -559,52 +1062,57 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   steps: {
-    alignSelf: 'stretch',
-    marginTop: Spacing.three,
-  },
-  card: {
-    marginTop: Spacing.four,
+    marginTop: Spacing.two,
   },
   cardRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.twoHalf,
+    gap: Spacing.twoThreeQuarters,
+    paddingHorizontal: Spacing.threeLess,
   },
   thumb: {
     width: 52,
     height: 52,
-    overflow: 'hidden',
     borderRadius: Radius.small,
-  },
-  thumbArt: {
-    marginStart: -26,
   },
   cardText: {
     flex: 1,
-    gap: Spacing.half,
+    gap: 1,
   },
   book: {
     paddingHorizontal: Spacing.threeLess,
     paddingVertical: Spacing.two,
-    borderRadius: Radius.pill,
+    borderRadius: Radius.option,
   },
+  // Figma: 13 px SemiBold on a "normal" 20 px line.
+  bookLabel: {
+    lineHeight: 20,
+  },
+  // Figma: 18 px below the card; the phase gap gives 20.
   interruptHint: {
-    marginTop: Spacing.three,
+    marginTop: -2,
   },
   controls: {
     position: 'absolute',
     start: Spacing.three,
     end: Spacing.three,
-    gap: Spacing.four,
+    // Figma: control labels end at y 725, the note starts at y 760.
+    gap: 35,
   },
   controlRow: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
+    justifyContent: 'center',
+    gap: 22,
   },
   control: {
     alignItems: 'center',
     gap: Spacing.two,
-    minWidth: 64,
+  },
+  // The photo taken with Show, above the question it belongs to.
+  shown: {
+    width: 96,
+    height: 96,
+    borderRadius: Radius.card,
   },
   controlCircle: {
     width: 60,

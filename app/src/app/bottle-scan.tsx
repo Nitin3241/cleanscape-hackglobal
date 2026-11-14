@@ -204,11 +204,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.threeLess,
-    // Figma: the buttons sit 32 px above the sheet's bottom edge.
-    marginTop: 'auto',
+    // 24 under the last line; the sheet is as tall as its content.
+    marginTop: Spacing.four,
     marginBottom: Spacing.twoThreeQuarters,
   },
+  // The main button takes the room that's left beside "Find bins", so the row spans the sheet.
   binned: {
-    width: 196,
+    flex: 1,
   },
 });

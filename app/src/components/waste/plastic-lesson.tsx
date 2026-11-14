@@ -114,14 +114,14 @@ function StepCard({
   );
 }
 
-/** Step 1: the bottle turns upright (0.4–1.0 s), then a last drop falls out (1.05–1.75 s). */
+/** Step 1: the bottle tips over, neck down (0.4–1.0 s), then a last drop falls out of the neck (1.05–1.75 s). */
 function EmptyScene() {
   const reducedMotion = useReducedMotion();
-  const turn = useSharedValue(reducedMotion ? 0 : 180);
+  const turn = useSharedValue(reducedMotion ? 180 : 0);
   const drop = useSharedValue(0);
   useEffect(() => {
     if (reducedMotion) return;
-    turn.set(withDelay(400, t(0, 600)));
+    turn.set(withDelay(400, t(180, 600)));
     drop.set(withDelay(1050, withSequence(t(1, 300), withDelay(80, t(2, 420)))));
   }, [turn, drop, reducedMotion]);
   const bottleStyle = useAnimatedStyle(() => ({ transform: [{ rotate: `${turn.get()}deg` }] }));

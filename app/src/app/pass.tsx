@@ -16,6 +16,7 @@ import { TabBar } from '@/components/ui/tab-bar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tappable } from '@/components/ui/tappable';
 import { Toast } from '@/components/ui/toast';
+import { FigmaLines } from '@/constants/figma-lines';
 import { Radius, Spacing, TabBarHeight } from '@/constants/theme';
 import { findEvent, SAMPLE_FRIEND, SAMPLE_GUARDIAN, SAMPLE_RIDES, SAMPLE_USER } from '@/data/events.sample';
 import { useSampleLoading } from '@/hooks/use-sample-loading';
@@ -140,28 +141,36 @@ export default function PassRoute() {
         </Skeleton>
 
         {ride && registration.ride !== 'none' && !declined && (
-          <Skeleton loading={loading} order={1} radius={Radius.small}>
+          <Skeleton loading={loading} order={1} radius={Radius.small} style={styles.rideSlot}>
+            {/* Figma T7: the row opens T13 (the driver cancelled, rematch); the chat button opens T6. */}
             <Tappable
               accessibilityRole="button"
-              accessibilityLabel={`Your ride with ${ride.driver.name}, ${ride.pickupTime} from ${ride.pickup}. Open chat`}
-              delayLongPress={600}
-              // SAMPLE: a long press stands in for the driver cancelling, to show the rematch.
-              onLongPress={() => {
+              accessibilityLabel={`Your ride with ${ride.driver.name}, ${ride.pickupTime} from ${ride.pickup}`}
+              onPress={() => {
+                // SAMPLE: stands in for the driver cancelling, to show the rematch.
                 registration.driverCancels();
                 router.push('/ride-rematch');
               }}
-              onPress={() => router.push(registration.ride === 'accepted' ? '/ride-chat' : '/ride')}
               style={[styles.ride, { backgroundColor: theme.card, borderColor: theme.brand }]}>
               <Avatar initials={ride.driver.initials} tone={ride.driver.tone} />
               <View style={styles.rideText}>
-                <ThemedText type="label">{`Your ride · ${ride.driver.name.split(' ')[0]}`}</ThemedText>
-                <ThemedText type="meta" themeColor="textWeak">
-                  {registration.ride === 'requested' ? 'Request sent · waiting for a reply' : `${ride.pickupTime} · ${ride.pickup}`}
+                <ThemedText
+                  type="labelSmall"
+                  style={FigmaLines.l20}>{`Your ride · ${ride.driver.name.split(' ')[0]}`}</ThemedText>
+                <ThemedText type="ticketCaption" themeColor="textWeak" style={FigmaLines.l17}>
+                  {registration.ride === 'requested'
+                    ? 'Request sent · waiting for a reply'
+                    : `${ride.pickupTime} · ${ride.pickup}`}
                 </ThemedText>
               </View>
-              <View style={[styles.rideChat, { backgroundColor: theme.fill }]}>
+              <Tappable
+                accessibilityRole="button"
+                accessibilityLabel={`Chat with ${ride.driver.name.split(' ')[0]}`}
+                hitSlop={5}
+                onPress={() => router.push(registration.ride === 'accepted' ? '/ride-chat' : '/ride')}
+                style={[styles.rideChat, { backgroundColor: theme.fill }]}>
                 <Icon name="chat" size={18} color="brand" strokeWidth={1.5} />
-              </View>
+              </Tappable>
             </Tappable>
           </Skeleton>
         )}
@@ -241,11 +250,18 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingBottom: TabBarHeight,
   },
+  // Figma T7: the ride sits 12 under the pass and 10 above the actions.
+  rideSlot: {
+    marginTop: -Spacing.one,
+    marginBottom: -Spacing.oneHalf,
+  },
+  // Figma T7 "Your ride": 12 / 10 padding.
   ride: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.twoThreeQuarters,
-    padding: Spacing.twoThreeQuarters,
+    paddingHorizontal: Spacing.twoThreeQuarters,
+    paddingVertical: Spacing.twoHalf,
     borderWidth: 1.5,
     borderRadius: Radius.option,
   },
@@ -253,11 +269,11 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   rideChat: {
-    width: 36,
-    height: 36,
+    width: 34,
+    height: 34,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 18,
+    borderRadius: 17,
   },
   actions: {
     flexDirection: 'row',

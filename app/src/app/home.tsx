@@ -120,7 +120,7 @@ export default function HomeScreen() {
         <CalendarToast />
         <EarthyFab
           paused={isScrolling}
-          onPress={() => setAskingEarthy(true)}
+          onPress={() => router.push('/earthy')}
           buttonRef={fabRef}
           lift={calendarToast ? FAB_LIFT_FOR_TOAST : 0}
         />
@@ -128,7 +128,7 @@ export default function HomeScreen() {
         {askingEarthy && (
           <VoiceSheet
             onClose={() => setAskingEarthy(false)}
-            onBook={(id) => router.push({ pathname: '/event-detail', params: { id } })}
+            onBook={() => router.push({ pathname: '/earthy-chat', params: { start: 'next' } })}
           />
         )}
       </DirectionView>

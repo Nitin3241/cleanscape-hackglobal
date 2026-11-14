@@ -57,6 +57,8 @@ function roundedRect({ x, y, width, height }: Rect, r: number) {
 // flush on it, centred on the target.
 const RING_ON_CARD = 2;
 const RING_ON_ROUND = 6;
+/** How long a tip stays before it leaves by itself. */
+const AUTO_DISMISS = 3000;
 const GAP = 14;
 const POINTER_W = 18;
 const POINTER_H = 9;
@@ -70,6 +72,16 @@ export function EarthyInsight({ target, targetRadius = Radius.panel, title, body
   const theme = useTheme();
   const { width, height } = useWindowDimensions();
   const [rect, setRect] = useState<Rect | null>(null);
+  const shown = rect !== null;
+
+  // A tip leaves by itself 3 s after it appears (Nitin, 14 Nov), so it never blocks the screen.
+  useEffect(() => {
+    if (!shown) return;
+    const timer = setTimeout(onDismiss, AUTO_DISMISS);
+    return () => clearTimeout(timer);
+    // Counts from the moment the tip shows; onDismiss is not stable between renders.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shown]);
 
   useEffect(() => {
     const measure = () =>

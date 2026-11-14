@@ -11,11 +11,21 @@ type StickyFooterProps = {
   variant?: 'solid' | 'glass';
   /** Leaves room for the tab bar under the footer. */
   aboveTabBar?: boolean;
+  /** Space between the solid footer's content and the tab bar (Figma T4 and T8: 28). */
+  tabGap?: number;
+  /** `start` lines the content up at the top, as on Figma T4 (text beside a taller button). */
+  align?: 'center' | 'start';
   children: ReactNode;
 };
 
 /** The action bar pinned to the bottom of detail screens, such as Register. */
-export function StickyFooter({ variant = 'solid', aboveTabBar = true, children }: StickyFooterProps) {
+export function StickyFooter({
+  variant = 'solid',
+  aboveTabBar = true,
+  tabGap = Spacing.twoThreeQuarters,
+  align = 'center',
+  children,
+}: StickyFooterProps) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const tabSpace = aboveTabBar ? TabBarHeight + insets.bottom : Math.max(insets.bottom, Spacing.three);
@@ -33,12 +43,8 @@ export function StickyFooter({ variant = 'solid', aboveTabBar = true, children }
   }
 
   return (
-    <View
-      style={[
-        styles.solid,
-        { backgroundColor: theme.card, boxShadow: Shadows.footer, paddingBottom: tabSpace + Spacing.twoThreeQuarters },
-      ]}>
-      <View style={styles.row}>{children}</View>
+    <View style={[styles.solid, { backgroundColor: theme.card, boxShadow: Shadows.footer, paddingBottom: tabSpace + tabGap }]}>
+      <View style={[styles.row, align === 'start' && styles.rowStart]}>{children}</View>
     </View>
   );
 }
@@ -71,5 +77,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: Spacing.twoThreeQuarters,
+  },
+  rowStart: {
+    alignItems: 'flex-start',
   },
 });

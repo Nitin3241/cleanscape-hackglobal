@@ -20,19 +20,17 @@ type ProgressDotsProps = {
   active: number;
   /** Used by the welcome carousel, whose pill moves on the joy spring. */
   spring?: boolean;
+  /** Paint every dot brand (Figma Onb 02.1 draws its inactive dots brand, unlike 02.2 and 02.3). */
+  allFilled?: boolean;
   accessibilityLabel: string;
 };
 
 /** A row of dots with a stretched pill on the current one. Earlier steps stay filled, except on the carousel. */
-export function ProgressDots({ count, active, spring = false, accessibilityLabel }: ProgressDotsProps) {
+export function ProgressDots({ count, active, spring = false, allFilled = false, accessibilityLabel }: ProgressDotsProps) {
   return (
-    <View
-      accessible
-      accessibilityRole="progressbar"
-      accessibilityLabel={accessibilityLabel}
-      style={styles.row}>
+    <View accessible accessibilityRole="progressbar" accessibilityLabel={accessibilityLabel} style={styles.row}>
       {Array.from({ length: count }, (_, index) => (
-        <Dot key={index} isActive={index === active} isPast={!spring && index < active} spring={spring} />
+        <Dot key={index} isActive={index === active} isPast={allFilled || (!spring && index < active)} spring={spring} />
       ))}
     </View>
   );

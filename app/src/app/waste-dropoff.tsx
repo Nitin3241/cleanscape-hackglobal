@@ -1,5 +1,5 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 import Animated, { Easing, FadeIn, FadeOut, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -32,6 +32,12 @@ export default function WasteDropOffRoute() {
   const params = useLocalSearchParams<{ intro?: string }>();
   // First visit (from Find drop-off): two tips, then the map. Skip or Got it ends them.
   const [tip, setTip] = useState<0 | 1 | 2>(params.intro === '1' ? 1 : 0);
+  // Each tip leaves by itself after 3 s (Nitin, 14 Nov): the first hands over to the second, then both are gone.
+  useEffect(() => {
+    if (tip === 0) return;
+    const timer = setTimeout(() => setTip(tip === 1 ? 2 : 0), 3000);
+    return () => clearTimeout(timer);
+  }, [tip]);
   const [filter, setFilter] = useState<Filter>('all');
   // Figma's pins expand into a callout when tapped (variants 452:10185 to 452:10245).
   const [open, setOpen] = useState<PlaceKind | null>('vending');
@@ -262,11 +268,19 @@ const calloutIn = () => {
 };
 
 /** Figma Map/Pin: a 40 px pin with its distance label; tapped, the label gives way to the callout card. */
+// In the map's own coordinates (Figma's 360 × 800 frame): the filter chips end at y 148, and a pin's circle
+// ends 50 px below its anchor.
+const CHIPS_BOTTOM = 150;
+const PIN_BOTTOM = 50;
+
 function Pin({ place, open, onPress }: { place: (typeof PLACES)[number]; open: boolean; onPress: () => void }) {
   const theme = useTheme();
   const kind = PLACE_KINDS[place.kind];
   // Figma keeps the card inside the frame: centred on the pin unless that would cross the screen edge.
   const cardLeft = Math.min(Math.max(place.pin.x + 20 - CALLOUT.width / 2, 8), 360 - 8 - CALLOUT.width);
+  // A pin near the top (the recycling centre) has the filter chips where its card would go, so the card opens
+  // under the pin instead of sliding behind the chips.
+  const below = place.pin.y - CALLOUT.abovePin < CHIPS_BOTTOM;
   return (
     <>
       {!open && (
@@ -282,7 +296,11 @@ function Pin({ place, open, onPress }: { place: (typeof PLACES)[number]; open: b
           exiting={FadeOut.duration(150)}
           style={[
             styles.abs,
-            { left: cardLeft, top: place.pin.y - CALLOUT.abovePin, transformOrigin: `${place.pin.x + 20 - cardLeft}px 100%` },
+            {
+              left: cardLeft,
+              top: below ? place.pin.y + PIN_BOTTOM : place.pin.y - CALLOUT.abovePin,
+              transformOrigin: `${place.pin.x + 20 - cardLeft}px ${below ? '0%' : '100%'}`,
+            },
           ]}>
           <Pressable
             accessibilityRole="button"
@@ -294,6 +312,7 @@ function Pin({ place, open, onPress }: { place: (typeof PLACES)[number]; open: b
               distance={`${place.distance} · ${place.pinHours}`}
               accent={kind.accent}
               distanceColor={kind.ink}
+              below={below}
             />
           </Pressable>
         </Animated.View>

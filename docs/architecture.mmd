@@ -1,17 +1,20 @@
 flowchart TB
   Judge["Judges, in a browser"]
-  subgraph Phone["Phone, running in Expo Go"]
-    direction LR
-    App["CleanScape app<br/>React Native + Expo"]
-    Sample["Sample data<br/>events, pass, Smileys"]
-    App --- Sample
-  end
+  App["CleanScape app on a phone (Expo Go)<br/>React Native + Expo<br/>type, talk, or show an item"]
+  Sample["Sample data in the app<br/>events, pass, Smileys"]
+  App --- Sample
   subgraph Vultr["Vultr"]
-    direction LR
     Web["Ask Earthy web page<br/>the live demo"]
-    API["Earthy API<br/>FastAPI in Docker<br/>on Cloud Compute"]
-    LLM["Vultr Serverless Inference<br/>OpenAI-compatible model"]
-    Web --> API --> LLM
+    API["Earthy API<br/>FastAPI in Docker<br/>on Vultr Cloud Compute"]
+    Chat["Serverless Inference<br/>chat models: the answers"]
+    STT["Serverless Inference<br/>Whisper: speech to text"]
+    TTS["Serverless Inference<br/>Qwen3 TTS: text to speech"]
+    Vision["Serverless Inference<br/>vision model: reads the photo"]
+    Web --> API
+    API --> Chat
+    API --> STT
+    API --> TTS
+    API --> Vision
   end
-  App -->|"typed question"| API
+  App -->|"question, voice or photo"| API
   Judge --> Web

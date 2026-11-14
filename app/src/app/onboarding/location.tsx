@@ -1,12 +1,7 @@
 import { router } from 'expo-router';
 import { useEffect } from 'react';
 import { StyleSheet, View } from 'react-native';
-import Animated, {
-  useAnimatedStyle,
-  useReducedMotion,
-  useSharedValue,
-  withSequence,
-} from 'react-native-reanimated';
+import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withSequence } from 'react-native-reanimated';
 import { SvgXml } from 'react-native-svg';
 
 import { OnboardingScreen } from '@/components/onboarding/onboarding-screen';
@@ -27,12 +22,7 @@ export default function LocationRoute() {
 
   useEffect(() => {
     if (reducedMotion) return;
-    pulse.set(
-      withSequence(
-        standardTiming(PULSE_SCALE, Motion.duration.base),
-        standardTiming(1, Motion.duration.base),
-      ),
-    );
+    pulse.set(withSequence(standardTiming(PULSE_SCALE, Motion.duration.base), standardTiming(1, Motion.duration.base)));
   }, [pulse, reducedMotion]);
 
   const ringsStyle = useAnimatedStyle(() => ({ transform: [{ scale: pulse.get() }] }));
@@ -91,8 +81,9 @@ const styles = StyleSheet.create({
     maxWidth: 296,
     alignSelf: 'center',
   },
+  // Figma 09: the link ends at y 736, 64 px above the frame's bottom.
   other: {
     marginTop: Spacing.threeHalf,
-    marginBottom: Spacing.half,
+    marginBottom: 28,
   },
 });

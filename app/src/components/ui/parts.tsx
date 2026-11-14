@@ -8,6 +8,7 @@ import { StyleSheet, View } from 'react-native';
 import { ThemedText } from '@/components/themed-text';
 import { Icon, type IconName } from '@/components/ui/icon';
 import { Tappable } from '@/components/ui/tappable';
+import { FigmaLines } from '@/constants/figma-lines';
 import { Radius, Spacing, ThemeColor } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
@@ -78,9 +79,7 @@ export function Notice({
   const warning = tone === 'warning';
 
   return (
-    <View
-      accessibilityRole="text"
-      style={[styles.notice, { backgroundColor: warning ? theme.secondarySubtle : theme.fill }]}>
+    <View accessibilityRole="text" style={[styles.notice, { backgroundColor: warning ? theme.secondarySubtle : theme.fill }]}>
       <Icon name={icon} size={18} color={warning ? 'textSecondary' : 'brand'} strokeWidth={1.5} />
       <View style={styles.noticeText}>
         <ThemedText type="note" themeColor={warning ? 'textStrong' : 'brand'}>
@@ -120,12 +119,25 @@ export function AlertBanner({ title, body }: { title: string; body: string }) {
 }
 
 /** How full a cleanup is. Coral when it still needs people (under half full), as on the R2 map. */
-export function SpotsBar({ filled, width = 170, needsPeople = false }: { filled: number; width?: number; needsPeople?: boolean }) {
+export function SpotsBar({
+  filled,
+  width = 170,
+  needsPeople = false,
+}: {
+  filled: number;
+  width?: number;
+  needsPeople?: boolean;
+}) {
   const theme = useTheme();
 
   return (
     <View style={[styles.track, { width, backgroundColor: theme.track }]}>
-      <View style={[styles.bar, { width: width * Math.min(Math.max(filled, 0), 1), backgroundColor: needsPeople ? theme.avatarCoral : theme.brand }]} />
+      <View
+        style={[
+          styles.bar,
+          { width: width * Math.min(Math.max(filled, 0), 1), backgroundColor: needsPeople ? theme.avatarCoral : theme.brand },
+        ]}
+      />
     </View>
   );
 }
@@ -138,10 +150,7 @@ export function SeatDots({ seats, open }: { seats: number; open: number }) {
   return (
     <View style={styles.seats} accessible={false}>
       {Array.from({ length: seats }, (_, index) => (
-        <View
-          key={index}
-          style={[styles.seat, { backgroundColor: index >= seats - open ? openColor : theme.seatEmpty }]}
-        />
+        <View key={index} style={[styles.seat, { backgroundColor: index >= seats - open ? openColor : theme.seatEmpty }]} />
       ))}
     </View>
   );
@@ -156,17 +165,23 @@ export function RouteTimeline({ from, to }: { from: Stop; to: Stop }) {
   return (
     <View style={styles.route} accessible accessibilityLabel={`${from.time} ${from.place}, then ${to.time} ${to.place}`}>
       <View style={styles.times}>
-        <ThemedText type="eventTitle">{from.time}</ThemedText>
-        <ThemedText type="eventTitle">{to.time}</ThemedText>
+        <ThemedText type="eventTitle" style={FigmaLines.l24}>
+          {from.time}
+        </ThemedText>
+        <ThemedText type="eventTitle" style={FigmaLines.l24}>
+          {to.time}
+        </ThemedText>
       </View>
       <View style={styles.line}>
-        <View style={[styles.stopOpen, { borderColor: theme.brand }]} />
+        <View style={[styles.stopOpen, { borderColor: theme.brand, backgroundColor: theme.card }]} />
         <View style={[styles.rail, { backgroundColor: theme.brand }]} />
         <View style={[styles.stopFilled, { backgroundColor: theme.brand }]} />
       </View>
       <View style={styles.places}>
         <View>
-          <ThemedText type="label">{from.place}</ThemedText>
+          <ThemedText type="label" style={FigmaLines.l21}>
+            {from.place}
+          </ThemedText>
           <View style={styles.inline}>
             <ThemedText type="meta" themeColor="textWeak">
               {from.note}
@@ -175,7 +190,9 @@ export function RouteTimeline({ from, to }: { from: Stop; to: Stop }) {
           </View>
         </View>
         <View>
-          <ThemedText type="label">{to.place}</ThemedText>
+          <ThemedText type="label" style={FigmaLines.l21}>
+            {to.place}
+          </ThemedText>
           <ThemedText type="meta" themeColor="textWeak">
             {to.note}
           </ThemedText>
@@ -292,34 +309,37 @@ const styles = StyleSheet.create({
     height: 12,
     borderRadius: 3,
   },
+  // Figma ride "Route" (T3, T4, T8, T10, T13): times 16 / 24 with 30 between, a 12 x 74 line (open stop at y 4,
+  // rail 17–57, filled stop 58–70) and places 14 / 21 over 12 / 18 with 10 between the two stops.
   route: {
     flexDirection: 'row',
     gap: Spacing.twoThreeQuarters,
   },
   times: {
-    justifyContent: 'space-between',
-    paddingBottom: Spacing.threeHalf,
+    gap: 30,
   },
   line: {
     width: 12,
+    height: 74,
     alignItems: 'center',
-    paddingTop: Spacing.oneHalf,
-    paddingBottom: Spacing.threeHalf,
+    paddingTop: Spacing.one,
   },
   stopOpen: {
     width: 12,
     height: 12,
-    borderWidth: 2.5,
+    borderWidth: 3,
     borderRadius: 6,
   },
   rail: {
-    flex: 1,
     width: 3,
-    minHeight: 30,
+    height: 40,
+    marginTop: 1,
+    marginStart: 1,
   },
   stopFilled: {
     width: 12,
     height: 12,
+    marginTop: 1,
     borderRadius: 6,
   },
   places: {

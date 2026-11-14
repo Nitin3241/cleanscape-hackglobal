@@ -16,10 +16,12 @@ type ChoiceChipProps = {
   onMap?: boolean;
   /** A small coloured dot before the label, such as coral for "Needs people". */
   dot?: ThemeColor;
+  /** Figma Onb 10 draws the border outside the 8 × 12 padding, so its chips are 38 px tall, not 36. */
+  borderOutsidePadding?: boolean;
 };
 
 /** Selectable pill for picking any number of options, in onboarding and filters. */
-export function ChoiceChip({ label, selected, onPress, onMap = false, dot }: ChoiceChipProps) {
+export function ChoiceChip({ label, selected, onPress, onMap = false, dot, borderOutsidePadding = false }: ChoiceChipProps) {
   const theme = useTheme();
   const selection = useSelectionTween(selected);
 
@@ -38,7 +40,7 @@ export function ChoiceChip({ label, selected, onPress, onMap = false, dot }: Cho
         feedback.play(selected ? 'toggle.off' : 'toggle.on');
         onPress();
       }}>
-      <Animated.View style={[styles.chip, chipStyle]}>
+      <Animated.View style={[styles.chip, borderOutsidePadding && styles.chipOutside, chipStyle]}>
         {dot && <View style={[styles.dot, { backgroundColor: selected ? theme.textOnBrand : theme[dot] }]} />}
         <ThemedText type={selected ? 'chipSelected' : 'body'} themeColor={selected ? 'textOnBrand' : 'textStrong'}>
           {label}
@@ -58,6 +60,10 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.two - 1,
     borderWidth: 1,
     borderRadius: Radius.pill,
+  },
+  chipOutside: {
+    paddingHorizontal: Spacing.twoThreeQuarters,
+    paddingVertical: Spacing.two,
   },
   dot: {
     width: 8,

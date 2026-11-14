@@ -53,7 +53,7 @@ export default function EarthyAskSheet() {
       </View>
       <EarthyNote title={ASK_ORGANISER.earthy.title} body={ASK_ORGANISER.earthy.body} />
       <View
-        style={[styles.organiser, { borderColor: theme.strokeWeak }]}
+        style={[styles.organiser, { borderColor: theme.strokeWarm }]}
         accessible
         accessibilityLabel={`${ASK_ORGANISER.organiser.name}, ${ASK_ORGANISER.organiser.role}`}>
         <View style={[styles.avatar, { backgroundColor: theme.fill }]}>

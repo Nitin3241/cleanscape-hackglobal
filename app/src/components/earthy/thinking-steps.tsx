@@ -35,7 +35,9 @@ function StepRow({ step }: { step: ThinkingStep }) {
   return (
     <Animated.View
       style={styles.row}
-      entering={FadeInUp.duration(dur.base).easing(ease).withInitialValues({ opacity: 0, transform: [{ translateY: 6 }] })}
+      entering={FadeInUp.duration(dur.base)
+        .easing(ease)
+        .withInitialValues({ opacity: 0, transform: [{ translateY: 6 }] })}
       layout={LinearTransition.duration(dur.base).easing(ease)}>
       <View style={styles.icon}>
         {step.status === 'active' ? (
@@ -67,6 +69,6 @@ const styles = StyleSheet.create({
   list: { gap: Spacing.twoHalf },
   row: { flexDirection: 'row', alignItems: 'center', gap: Spacing.twoHalf },
   icon: { width: 18, height: 18, alignItems: 'center', justifyContent: 'center' },
-  // Same family and weight in every state. Size from the Figma frame F9v2·2a.
-  label: { flexShrink: 1, fontFamily: Fonts.medium, fontSize: 15, lineHeight: 22 },
+  // Same family and weight in every state. Size from the Figma frame F9v2·2a (14 px on a "normal" 21 px line).
+  label: { flexShrink: 1, fontFamily: Fonts.regular, fontSize: 14, lineHeight: 21 },
 });

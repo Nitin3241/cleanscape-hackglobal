@@ -14,9 +14,7 @@ const NUMBER_LENGTH = 9;
 
 /** Groups a UAE mobile number the way it's read aloud: 50 123 4567. */
 function formatNumber(digits: string) {
-  return [digits.slice(0, 2), digits.slice(2, 5), digits.slice(5, NUMBER_LENGTH)]
-    .filter(Boolean)
-    .join(' ');
+  return [digits.slice(0, 2), digits.slice(2, 5), digits.slice(5, NUMBER_LENGTH)].filter(Boolean).join(' ');
 }
 
 export default function PhoneRoute() {
@@ -62,9 +60,10 @@ export default function PhoneRoute() {
         />
       </View>
 
-      {/* There's no email screen in Figma yet, so this doesn't go anywhere. */}
+      {/* Figma draws this link in brand colour but gives it no prototype link and there's no email screen yet,
+          so it's a dead tap for now (reported to Nitin). */}
       <View style={styles.email}>
-        <TextButton label="Use email instead" disabled />
+        <TextButton label="Use email instead" />
       </View>
     </OnboardingScreen>
   );

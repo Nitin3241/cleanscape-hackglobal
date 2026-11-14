@@ -32,10 +32,7 @@ export default function NotificationsRoute() {
     if (reducedMotion) return;
     const swing = (to: number) => withTiming(to, { duration: SWING });
     angle.set(
-      withDelay(
-        Motion.duration.base,
-        withSequence(swing(WOBBLE), swing(-WOBBLE), swing(WOBBLE), swing(-WOBBLE), swing(0)),
-      ),
+      withDelay(Motion.duration.base, withSequence(swing(WOBBLE), swing(-WOBBLE), swing(WOBBLE), swing(-WOBBLE), swing(0))),
     );
   }, [angle, reducedMotion]);
 
@@ -93,8 +90,9 @@ const styles = StyleSheet.create({
     maxWidth: 296,
     alignSelf: 'center',
   },
+  // Figma 11: the link ends at y 736, 64 px above the frame's bottom.
   other: {
     marginTop: Spacing.threeHalf,
-    marginBottom: Spacing.half,
+    marginBottom: 28,
   },
 });

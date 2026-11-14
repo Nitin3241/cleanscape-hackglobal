@@ -58,7 +58,12 @@ export function OnboardingHeader() {
         </View>
       )}
 
-      {config.skipTo && <SkipLink href={config.skipTo} />}
+      {/* Figma puts Skip's text at y 62, a pixel below the row's centre. */}
+      {config.skipTo && (
+        <View style={styles.skip}>
+          <SkipLink href={config.skipTo} />
+        </View>
+      )}
     </View>
   );
 }
@@ -94,6 +99,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderWidth: 1,
     borderRadius: 20,
+  },
+  skip: {
+    paddingTop: Spacing.half,
   },
   progress: {
     ...StyleSheet.absoluteFill,

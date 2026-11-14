@@ -373,28 +373,40 @@ export const VOLUNTEERING = {
 export const EARTHY_HOME = {
   greeting: 'Hello, Sara',
   prompt: 'What can I sort for you?',
+  // Three facts about the next clean-up, each written the same way: the number first, then what it is.
+  // `ask` is the question the live assistant gets; `start` is the scripted answer used with no server.
+  todayLabel: 'THIS SATURDAY',
   today: [
     {
       icon: 'calendar' as const,
-      title: 'Kite Beach',
-      note: 'in 3 days · bus 6:15',
+      title: '7–10 AM',
+      note: 'Kite Beach clean-up',
       tone: 'fill' as const,
       start: 'next' as StepId,
+      ask: 'When and where is my next clean-up, and when should I arrive?',
     },
     {
       icon: 'sun' as const,
-      title: '38°C Saturday',
-      note: 'bring 1 L water',
+      title: '38°C',
+      note: 'Bring 1 L of water',
       tone: 'secondarySubtle' as const,
       start: 'water' as StepId,
+      ask: 'It will be 38°C on Saturday. How do I stay safe in the heat at the clean-up?',
     },
-    { icon: 'smile' as const, title: '1,240', note: 'Smileys', tone: 'statusSuccessSubtle' as const, start: 'hours' as StepId },
+    {
+      icon: 'bus' as const,
+      title: '6:15 AM',
+      note: 'Bus from school',
+      tone: 'statusSuccessSubtle' as const,
+      start: 'next' as StepId,
+      ask: 'How do I get to the clean-up on Saturday?',
+    },
   ],
+  // Four things people ask, all as questions. Each label is sent to the live assistant as written.
   suggestions: [
     { label: 'What should I bring on Saturday?', start: 'bring' as StepId },
-    { label: 'Join my class with a code', start: 'joinCode' as StepId },
-    // Story B (F9v2·B1) and Story A (F9v2·A1).
-    { label: 'Start hands-free mode', start: 'dayGloves' as StepId },
-    { label: 'Find a clean-up with my friends', start: 'planMatch' as StepId },
+    { label: 'Which bin does a pizza box go in?', start: 'didYouMean' as StepId },
+    { label: 'Which of my friends are coming?', start: 'planMatch' as StepId },
+    { label: 'How many hours have I volunteered?', start: 'hours' as StepId },
   ],
 };

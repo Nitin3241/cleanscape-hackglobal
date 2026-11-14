@@ -234,9 +234,11 @@ const styles = StyleSheet.create({
     rowGap: Spacing.twoThreeQuarters,
     marginTop: 9,
   },
-  // Figma "Guide/…": 156 × 92, 18 radius; art 56 at (6, 18), text from x 68.
+  // Figma "Guide/…": 156 × 92 on the 360 px frame, 18 radius; art 56 at (6, 18), text from x 68.
+  // On a wider phone the two tiles in a row grow to share the width, so the grid keeps 16 px on both sides.
   tile: {
-    width: 156,
+    flexGrow: 1,
+    flexBasis: 156,
     height: 92,
     flexDirection: 'row',
     alignItems: 'flex-start',

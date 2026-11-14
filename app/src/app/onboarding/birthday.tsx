@@ -21,8 +21,7 @@ function ageOn(today: Date, year: number, month: number, day: number) {
   // A day past the end of the month (31 Feb) rolls into the next month, which is close enough for age.
   const birthday = new Date(year, month, day);
   const hadBirthdayThisYear =
-    today.getMonth() > birthday.getMonth() ||
-    (today.getMonth() === birthday.getMonth() && today.getDate() >= birthday.getDate());
+    today.getMonth() > birthday.getMonth() || (today.getMonth() === birthday.getMonth() && today.getDate() >= birthday.getDate());
   return today.getFullYear() - birthday.getFullYear() - (hadBirthdayThisYear ? 0 : 1);
 }
 
@@ -54,10 +53,11 @@ export default function BirthdayRoute() {
       </ThemedText>
 
       <View style={styles.wheel}>
-        <DateWheel>
-          <WheelColumn label="Day" items={DAYS} index={day} onChange={setDay} />
-          <WheelColumn label="Month" items={MONTHS} index={month} onChange={setMonth} />
-          <WheelColumn label="Year" items={YEARS} index={year} onChange={setYear} />
+        {/* Figma column centres: 60 / 161 / 264 across the 312 px wheel. */}
+        <DateWheel style={styles.columns}>
+          <WheelColumn label="Day" items={DAYS} index={day} onChange={setDay} width={80} />
+          <WheelColumn label="Month" items={MONTHS} index={month} onChange={setMonth} width={90} />
+          <WheelColumn label="Year" items={YEARS} index={year} onChange={setYear} width={80} />
         </DateWheel>
       </View>
 
@@ -81,7 +81,11 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
   },
   wheel: {
-    marginTop: 34,
+    marginTop: 40,
     marginBottom: Spacing.four,
+  },
+  columns: {
+    paddingStart: Spacing.threeHalf,
+    gap: 17,
   },
 });

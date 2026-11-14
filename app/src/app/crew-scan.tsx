@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Icon } from '@/components/ui/icon';
 import { Tappable } from '@/components/ui/tappable';
 import { SHEET_EASING } from '@/constants/motion';
+import { floatingSheetEdge } from '@/constants/sheet-edge';
 import { Motion, Radius, Spacing } from '@/constants/theme';
 import { CHECK_IN, ROSTER, SCAN_ISSUES, type ScanIssue } from '@/data/check-in.sample';
 import { feedback } from '@/feedback';
@@ -167,7 +168,7 @@ function IssueSheet({ issue, onPrimary, onSecondary }: { issue: ScanIssue; onPri
       <Animated.View
         entering={SlideInDown.duration(Motion.transition.sheet.duration).easing(SHEET_EASING)}
         accessibilityViewIsModal
-        style={[styles.sheet, { backgroundColor: theme.card, bottom: Math.max(insets.bottom, Spacing.two) }]}>
+        style={[styles.sheet, { backgroundColor: theme.card, ...floatingSheetEdge(insets.bottom) }]}>
         <View style={[styles.grabber, { backgroundColor: theme.strokeChip }]} />
         <View style={[styles.issueIcon, { backgroundColor: warning ? theme.secondarySubtle : theme.issueRedFill }]}>
           <ThemedText type="issueGlyph" themeColor={warning ? 'textPaper' : 'issueRed'}>

@@ -19,16 +19,19 @@ export function MapCallout({
   distance,
   accent,
   distanceColor,
+  below = false,
 }: {
   title: string;
   takes: string;
   distance: string;
   accent: string;
   distanceColor: string;
+  /** Sits under the pin with the caret on top, for a pin too near the top of the map to fit the card above it. */
+  below?: boolean;
 }) {
   const theme = useTheme();
   return (
-    <View>
+    <View style={below && styles.below}>
       <View style={[styles.card, { backgroundColor: theme.card }]}>
         <View style={[styles.accent, { backgroundColor: accent }]} />
         <View style={styles.text}>
@@ -39,7 +42,7 @@ export function MapCallout({
           <ThemedText style={[styles.distance, { color: distanceColor }]}>{distance}</ThemedText>
         </View>
       </View>
-      <SvgXml xml={calloutCaretXml} width={16} height={8} style={styles.caret} />
+      <SvgXml xml={calloutCaretXml} width={16} height={8} style={[styles.caret, below && styles.caretBelow]} />
     </View>
   );
 }
@@ -86,5 +89,13 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: (CALLOUT.width - 16) / 2,
     top: CALLOUT.height - 2,
+  },
+  // Under the pin: 6 px of room above the card for the caret, which points up.
+  below: {
+    paddingTop: 6,
+  },
+  caretBelow: {
+    top: 0,
+    transform: [{ rotate: '180deg' }],
   },
 });

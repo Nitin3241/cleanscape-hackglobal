@@ -1,5 +1,5 @@
 import { ComponentRef, useRef } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { ScrollView, type StyleProp, StyleSheet, View, type ViewStyle } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { Radius } from '@/constants/theme';
@@ -15,10 +15,12 @@ type WheelColumnProps = {
   items: readonly string[];
   index: number;
   onChange: (index: number) => void;
+  /** Figma Onb 06 sizes the columns 80 / 90 / 80 rather than splitting the width evenly. */
+  width?: number;
 };
 
 /** One scrolling column of a date wheel. The middle row is the selected one. */
-export function WheelColumn({ label, items, index, onChange }: WheelColumnProps) {
+export function WheelColumn({ label, items, index, onChange, width }: WheelColumnProps) {
   const scroller = useRef<ComponentRef<typeof ScrollView>>(null);
 
   function scrollTo(next: number, animated: boolean) {
@@ -27,7 +29,7 @@ export function WheelColumn({ label, items, index, onChange }: WheelColumnProps)
 
   return (
     <View
-      style={styles.column}
+      style={width ? { width } : styles.column}
       accessible
       accessibilityRole="adjustable"
       accessibilityLabel={label}
@@ -68,11 +70,11 @@ export function WheelColumn({ label, items, index, onChange }: WheelColumnProps)
 }
 
 /** The frame and highlight band that holds wheel columns. */
-export function DateWheel({ children }: { children: React.ReactNode }) {
+export function DateWheel({ children, style }: { children: React.ReactNode; style?: StyleProp<ViewStyle> }) {
   const theme = useTheme();
 
   return (
-    <View style={styles.wheel}>
+    <View style={[styles.wheel, style]}>
       <View style={[styles.band, { backgroundColor: theme.fill }]} />
       {children}
     </View>

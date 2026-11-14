@@ -56,10 +56,7 @@ export default function GuardianRoute() {
         autoCapitalize="none"
         autoCorrect={false}
         accessibilityLabel="Guardian's phone or email"
-        style={[
-          styles.input,
-          { backgroundColor: theme.card, borderColor: theme.strokeStrong, color: theme.textStrong },
-        ]}
+        style={[styles.input, { backgroundColor: theme.card, borderColor: theme.strokeStrong, color: theme.textStrong }]}
       />
 
       <View style={styles.note}>
@@ -90,7 +87,7 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
   },
   label: {
-    marginTop: Spacing.four,
+    marginTop: 28,
   },
   input: {
     marginTop: Spacing.oneHalf,

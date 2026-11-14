@@ -21,7 +21,7 @@ const FACE_TONES: ThemeColor[] = ['avatarMarigold', 'avatarTeal', 'avatarLavende
 
 /**
  * F10·17i Invite neighbours (sheet). "Send invites" turns it into F10·17j Invites sent, with the success tick;
- * "Done" closes it. SAMPLE: no one is really sent anything.
+ * "Done" goes back to Home. SAMPLE: no one is really sent anything.
  */
 export default function HostInviteSheet() {
   const theme = useTheme();
@@ -68,7 +68,7 @@ export default function HostInviteSheet() {
             {HOST_INVITE.sent}
           </ThemedText>
         </View>
-        <Button label="Done" flat onPress={() => router.back()} />
+        <Button label="Done" flat onPress={() => router.dismissTo('/home')} />
       </RouteSheet>
     );
   }

@@ -119,7 +119,9 @@ export function PlasticHero() {
 }
 
 const styles = StyleSheet.create({
+  // Laid out on Figma's 360 px frame, so it sits in the middle of a wider phone.
   hero: {
+    alignSelf: 'center',
     width: 360,
     height: 260,
   },

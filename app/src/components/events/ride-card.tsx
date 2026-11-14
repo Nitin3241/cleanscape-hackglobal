@@ -5,6 +5,7 @@ import { Icon } from '@/components/ui/icon';
 import { Avatar, RouteTimeline, SeatDots } from '@/components/ui/parts';
 import { Smiley } from '@/components/ui/smiley';
 import { Tappable } from '@/components/ui/tappable';
+import { FigmaLines } from '@/constants/figma-lines';
 import { Radius, Shadows, Spacing } from '@/constants/theme';
 import { type Ride } from '@/data/events.sample';
 import { useTheme } from '@/hooks/use-theme';
@@ -41,7 +42,7 @@ export function RideCard({ ride, best = false, badge = best, onPress }: RideCard
         <DriverSummary ride={ride} best={best && badge} />
         <View style={styles.seats}>
           <SeatDots seats={ride.seats} open={ride.seatsLeft} />
-          <ThemedText type="tag" themeColor={ride.seatsLeft === 1 ? 'textAccent' : 'brand'}>
+          <ThemedText type="tag" themeColor={ride.seatsLeft === 1 ? 'textAccent' : 'brand'} style={FigmaLines.l17}>
             {`${ride.seatsLeft} ${ride.seatsLeft === 1 ? 'seat' : 'seats'} left`}
           </ThemedText>
         </View>
@@ -59,11 +60,13 @@ export function DriverSummary({ ride, best = false }: { ride: Ride; best?: boole
       <Avatar initials={ride.driver.initials} tone={ride.driver.tone} />
       <View style={styles.whoText}>
         <View style={styles.name}>
-          <ThemedText type="label">{ride.driver.name}</ThemedText>
+          <ThemedText type="label" style={FigmaLines.l21}>
+            {ride.driver.name}
+          </ThemedText>
           <Icon name="check" size={13} color="statusSuccess" strokeWidth={2} />
           {best && (
             <View style={[styles.bestPill, { backgroundColor: theme.brand }]}>
-              <ThemedText type="microMedium" themeColor="textOnBrand">
+              <ThemedText type="avatarSmall" themeColor="textOnBrand" style={styles.bestText}>
                 Best match
               </ThemedText>
             </View>
@@ -71,7 +74,7 @@ export function DriverSummary({ ride, best = false }: { ride: Ride; best?: boole
         </View>
         <View style={styles.tier}>
           <Smiley size={14} />
-          <ThemedText type="tabLabel" themeColor="tierText">
+          <ThemedText type="tabLabel" themeColor="textPaper" style={FigmaLines.l17}>
             {`${ride.driver.tier} · ${ride.driver.smileys} Smileys`}
           </ThemedText>
         </View>
@@ -88,7 +91,7 @@ const styles = StyleSheet.create({
   },
   route: {
     paddingTop: Spacing.three,
-    paddingBottom: 0,
+    paddingBottom: Spacing.threeLess,
     paddingHorizontal: Spacing.three,
   },
   driver: {
@@ -114,10 +117,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: Spacing.one,
   },
+  // Figma "Best": 10 semibold at normal height (15), 8 / 3 padding, 10 radius.
   bestPill: {
     paddingHorizontal: Spacing.two,
-    paddingVertical: 2,
+    paddingVertical: 3,
     borderRadius: Radius.control,
+  },
+  bestText: {
+    lineHeight: 15,
   },
   tier: {
     flexDirection: 'row',

@@ -75,9 +75,9 @@ const styles = StyleSheet.create({
   other: {
     marginTop: Spacing.three,
   },
-  // Figma 8 Nov: 12 px more air above the terms and below them, which lifts the buttons.
+  // Figma 8 Nov: link bottom 679 → terms 718, and 12 px more air below them, which lifts the buttons.
   terms: {
-    marginTop: 40,
+    marginTop: 39,
     marginBottom: 12,
     maxWidth: 280,
     alignSelf: 'center',

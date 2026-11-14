@@ -25,8 +25,10 @@ const ARABIC = /[\u0600-\u06FF]/;
 
 /** Readex Pro Regular for regular text, Medium for everything heavier. No letter spacing or caps. */
 function arabicFont(base: { fontFamily?: string }) {
+  // Styles that already name a Readex weight (arabicTitle, arabicOption…) keep it.
+  const isArabicFont = base.fontFamily === Fonts.arabicRegular || base.fontFamily === Fonts.arabicMedium;
   return {
-    fontFamily: base.fontFamily === Fonts.regular ? Fonts.arabicRegular : Fonts.arabicMedium,
+    fontFamily: isArabicFont ? base.fontFamily : base.fontFamily === Fonts.regular ? Fonts.arabicRegular : Fonts.arabicMedium,
     letterSpacing: 0,
     textTransform: 'none' as const,
   };

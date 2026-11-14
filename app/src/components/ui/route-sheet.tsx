@@ -13,6 +13,10 @@ import { useTheme } from '@/hooks/use-theme';
 // Floating sheet (Figma, 13 Nov, iOS 26 rule): 8 px gap on the sides and bottom, 32 px corners all round.
 const SHEET_RADIUS = 32;
 const SHEET_GAP = 8;
+// On a phone with rounded screen corners the sheet's bottom corners follow the screen's curve: about 55 px
+// on current iPhones, less the 8 px gap. With 32 they looked pinched against the glass. A screenshot is
+// square, so this only shows on the device. Phones with square screens keep 32.
+const SHEET_BOTTOM_RADIUS = 47;
 const OFFSCREEN = 600;
 const DISMISS_DISTANCE = 80;
 
@@ -92,6 +96,8 @@ export function RouteSheet({
         accessibilityLabel={accessibilityLabel}
         style={[
           styles.sheet,
+          fullFromTop === undefined &&
+            insets.bottom > 0 && { borderBottomStartRadius: SHEET_BOTTOM_RADIUS, borderBottomEndRadius: SHEET_BOTTOM_RADIUS },
           fullFromTop !== undefined && [styles.full, { height: windowHeight - fullFromTop }],
           { backgroundColor: theme.card, boxShadow: Shadows.sheet },
           sheetStyle,

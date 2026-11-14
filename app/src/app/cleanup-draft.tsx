@@ -78,7 +78,9 @@ export default function CleanupDraftRoute() {
                   }}
                   style={[
                     styles.time,
-                    on ? { backgroundColor: theme.brand, borderColor: theme.brand } : { backgroundColor: theme.card, borderColor: theme.strokeChip },
+                    on
+                      ? { backgroundColor: theme.brand, borderColor: theme.brand }
+                      : { backgroundColor: theme.card, borderColor: theme.strokeChip },
                   ]}>
                   <ThemedText type="labelMedium14" themeColor={on ? 'textOnBrand' : 'textStrong'}>
                     {slot.time}
@@ -147,7 +149,11 @@ export default function CleanupDraftRoute() {
             <ThemedText type="labelSmall" style={styles.flex}>
               {`What to bring for ${crewSize} people`}
             </ThemedText>
-            <Tappable accessibilityRole="button" accessibilityLabel="Edit what to bring" hitSlop={8} onPress={() => router.push('/cleanup-details')}>
+            <Tappable
+              accessibilityRole="button"
+              accessibilityLabel="Edit what to bring"
+              hitSlop={8}
+              onPress={() => router.push('/cleanup-details')}>
               <ThemedText type="chipAction" themeColor="brand">
                 Edit
               </ThemedText>
@@ -173,7 +179,11 @@ export default function CleanupDraftRoute() {
         </View>
       </ScrollView>
 
-      <View style={[styles.bar, { backgroundColor: theme.card, borderTopColor: theme.dividerSoft, paddingBottom: Math.max(insets.bottom, 28) }]}>
+      <View
+        style={[
+          styles.bar,
+          { backgroundColor: theme.card, borderTopColor: theme.dividerSoft, paddingBottom: Math.max(insets.bottom, 27) },
+        ]}>
         {sending ? (
           <View
             accessible
@@ -207,12 +217,25 @@ export default function CleanupDraftRoute() {
 }
 
 /** The invite neighbours will see (F10·10 "Invite card"); also used on F10·17 You're live. */
-export function InviteCard({ onCoHost, onPlace, tag = 'drafted' }: { onCoHost: () => void; onPlace?: () => void; tag?: 'drafted' | 'live' }) {
+export function InviteCard({
+  onCoHost,
+  onPlace,
+  tag = 'drafted',
+}: {
+  onCoHost: () => void;
+  onPlace?: () => void;
+  tag?: 'drafted' | 'live';
+}) {
   const theme = useTheme();
   return (
     <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.strokeCard }]}>
       <View style={styles.cover}>
-        <Image source={require('@/assets/images/host/kite-beach-cover.jpg')} style={StyleSheet.absoluteFill} contentFit="cover" accessible={false} />
+        <Image
+          source={require('@/assets/images/host/kite-beach-cover.jpg')}
+          style={StyleSheet.absoluteFill}
+          contentFit="cover"
+          accessible={false}
+        />
         <LinearGradient colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.6)']} locations={[0.2, 1]} style={StyleSheet.absoluteFill} />
         {tag === 'drafted' ? (
           <View style={[styles.tag, { backgroundColor: theme.coverTag }]}>
@@ -241,7 +264,11 @@ export function InviteCard({ onCoHost, onPlace, tag = 'drafted' }: { onCoHost: (
           </ThemedText>
         </View>
         {onPlace ? (
-          <Tappable accessibilityRole="button" accessibilityLabel={`Place: ${HOST_DRAFT.place}. Change`} onPress={onPlace} style={styles.line}>
+          <Tappable
+            accessibilityRole="button"
+            accessibilityLabel={`Place: ${HOST_DRAFT.place}. Change`}
+            onPress={onPlace}
+            style={styles.line}>
             <Icon name="pin" size={16} color="brand" />
             <ThemedText type="bodyMedium" style={styles.flex}>
               {HOST_DRAFT.place}

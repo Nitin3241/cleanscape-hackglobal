@@ -3,6 +3,7 @@ import { StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
+import { floatingSheetEdge } from '@/constants/sheet-edge';
 import { Fonts, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
@@ -14,7 +15,7 @@ export function FloatingMapSheet({ title, subtitle, children }: { title: string;
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   return (
-    <View style={[styles.sheet, { backgroundColor: theme.card, bottom: Math.max(insets.bottom, Spacing.two) }]}>
+    <View style={[styles.sheet, { backgroundColor: theme.card, ...floatingSheetEdge(insets.bottom) }]}>
       <View style={[styles.grabber, { backgroundColor: theme.strokeControl }]} />
       <ThemedText style={styles.title} accessibilityRole="header">
         {title}

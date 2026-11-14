@@ -1,13 +1,8 @@
 import { router } from 'expo-router';
-import { useEffect, useState } from 'react';
-import { I18nManager, StyleSheet, View } from 'react-native';
+import { type ReactNode, useEffect, useState } from 'react';
+import { I18nManager, type StyleProp, StyleSheet, View, type ViewStyle } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import Animated, {
-  useAnimatedStyle,
-  useReducedMotion,
-  useSharedValue,
-  withTiming,
-} from 'react-native-reanimated';
+import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SvgXml } from 'react-native-svg';
 import { scheduleOnRN } from 'react-native-worklets';
@@ -18,11 +13,7 @@ import { OnboardingScreen } from '@/components/onboarding/onboarding-screen';
 import { ProgressDots } from '@/components/onboarding/progress-dots';
 import { ThemedText } from '@/components/themed-text';
 import { Button } from '@/components/ui/button';
-import {
-  welcomeCertificateXml,
-  welcomeMapXml,
-  welcomePeopleXml,
-} from '@/constants/onboarding-art';
+import { welcomeCertificateXml, welcomeMapXml, welcomePeopleXml } from '@/constants/onboarding-art';
 import { Motion, Spacing } from '@/constants/theme';
 
 const SLIDES = [
@@ -87,17 +78,23 @@ export default function WelcomeRoute() {
                 <Slide key={item.title} {...item} visible={index === slide} />
               ))}
             </View>
-            <View style={styles.dots}>
+            <EarthyShift isLast={isLast} style={styles.dots}>
               <ProgressDots
                 count={SLIDES.length}
                 active={slide}
                 spring
+                allFilled={slide === 0}
                 accessibilityLabel={`Slide ${slide + 1} of ${SLIDES.length}`}
               />
-            </View>
+            </EarthyShift>
             <View style={styles.copy}>
               {SLIDES.map((item, index) => (
-                <SlideCopy key={item.title} {...item} visible={index === slide} />
+                <SlideCopy
+                  key={item.title}
+                  {...item}
+                  visible={index === slide}
+                  shift={index === SLIDES.length - 1 ? EARTHY_COPY_SHIFT : 0}
+                />
               ))}
             </View>
           </OnboardingScreen>
@@ -124,6 +121,26 @@ function AiTagCorner({ visible, top }: { visible: boolean; top: number }) {
   );
 }
 
+// Figma Onb 02.4 sits its dots 12 px higher (y 408, not 420) and its copy 2 px lower than slides 02.1–02.3.
+const EARTHY_DOTS_SHIFT = -12;
+const EARTHY_COPY_SHIFT = 2;
+
+function EarthyShift({ isLast, style, children }: { isLast: boolean; style: StyleProp<ViewStyle>; children: ReactNode }) {
+  const reducedMotion = useReducedMotion();
+  const shift = useSharedValue(isLast ? EARTHY_DOTS_SHIFT : 0);
+
+  useEffect(() => {
+    shift.set(
+      withTiming(isLast ? EARTHY_DOTS_SHIFT : 0, {
+        duration: reducedMotion ? 0 : Motion.duration.slow,
+      }),
+    );
+  }, [isLast, reducedMotion, shift]);
+
+  const shiftStyle = useAnimatedStyle(() => ({ transform: [{ translateY: shift.get() }] }));
+  return <Animated.View style={[style, shiftStyle]}>{children}</Animated.View>;
+}
+
 function useCrossfade(visible: boolean) {
   const reducedMotion = useReducedMotion();
   const opacity = useSharedValue(visible ? 1 : 0);
@@ -148,13 +165,13 @@ function Slide({ artwork, visible }: { artwork: string; visible: boolean }) {
   );
 }
 
-function SlideCopy({ title, body, visible }: { title: string; body: string; visible: boolean }) {
+function SlideCopy({ title, body, visible, shift }: { title: string; body: string; visible: boolean; shift: number }) {
   const fade = useCrossfade(visible);
   return (
     <Animated.View
       accessibilityElementsHidden={!visible}
       importantForAccessibility={visible ? 'auto' : 'no-hide-descendants'}
-      style={[styles.slideCopy, fade]}>
+      style={[styles.slideCopy, { top: shift }, fade]}>
       <ThemedText type="welcomeTitle" accessibilityRole="header" style={styles.centred}>
         {title}
       </ThemedText>

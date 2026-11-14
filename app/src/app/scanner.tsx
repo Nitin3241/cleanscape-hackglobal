@@ -12,12 +12,14 @@ import { Tappable } from '@/components/ui/tappable';
 import { sheetTiming } from '@/constants/motion';
 import { Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { earthyIsLive } from '@/services/earthy-api';
 
 const FEED = require('@/assets/images/scan-pizza-camera.png');
 
 const OPTIONS: readonly { icon: IconName; title: string; note: string; href: Href }[] = [
   { icon: 'qr', title: 'Check in', note: 'Show your pass to the crew head', href: '/check-in' },
-  { icon: 'recycle', title: 'Sort an item', note: 'Earthy tells you which bin', href: '/waste-scan' },
+  // LIVE: the real scan (camera, photo, answer from the model). With no server, Figma's scripted pizza box.
+  { icon: 'recycle', title: 'Sort an item', note: 'Earthy tells you which bin', href: earthyIsLive ? '/earthy-show' : '/waste-scan' },
   { icon: 'bag', title: 'Log a bag', note: 'Scan the sticker on your bag', href: '/bag-log' },
   { icon: 'flag', title: 'Report litter', note: 'Flag a spot that needs a clean-up', href: '/report' },
   { icon: 'scan', title: 'Scan passes', note: 'Crew head only', href: '/crew-scan' },
@@ -42,7 +44,7 @@ export default function ScannerRoute() {
   }));
 
   return (
-    <Scanner feed={FEED}>
+    <Scanner feed={FEED} live={earthyIsLive}>
       <View style={[styles.corners, { top: insets.top + 56 }]} pointerEvents="none" aria-hidden>
         {(['tl', 'tr', 'bl', 'br'] as const).map((corner) => (
           <View key={corner} style={[styles.corner, styles[corner]]} />
@@ -57,7 +59,7 @@ export default function ScannerRoute() {
               What are you scanning?
             </ThemedText>
             <ThemedText type="note" themeColor="textWeak">
-              Point at it and Earthy will tell. Or pick one.
+              {earthyIsLive ? 'Pick what you want to do.' : 'Point at it and Earthy will tell. Or pick one.'}
             </ThemedText>
           </View>
           {OPTIONS.map((option) => (

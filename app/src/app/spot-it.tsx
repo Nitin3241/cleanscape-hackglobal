@@ -180,12 +180,13 @@ const styles = StyleSheet.create({
     end: 0,
     height: 160,
   },
+  // Runs to the photo's bottom edge, so the shade fades all the way down and doesn't stop in a hard line.
   bottomScrim: {
     position: 'absolute',
-    top: 302,
+    top: 252,
+    bottom: 0,
     start: 0,
     end: 0,
-    height: 150,
   },
   area: {
     position: 'absolute',

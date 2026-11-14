@@ -4,14 +4,16 @@ import { ReactNode } from 'react';
 import { ScrollView, Share, StyleSheet, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SvgXml } from 'react-native-svg';
 
 import { ThemedText } from '@/components/themed-text';
 import { Button } from '@/components/ui/button';
-import { Icon } from '@/components/ui/icon';
 import { RouteTimeline, SeatDots } from '@/components/ui/parts';
 import { Smiley } from '@/components/ui/smiley';
 import { TabBar } from '@/components/ui/tab-bar';
-import { TextButton } from '@/components/ui/text-button';
+import { Tappable } from '@/components/ui/tappable';
+import { FigmaLines } from '@/constants/figma-lines';
+import { nextChatXml, nextTickXml, publishedBadgeXml } from '@/constants/rides-art';
 import { Radius, Spacing, TabBarHeight } from '@/constants/theme';
 import { useFadeUp } from '@/hooks/use-fade-up';
 import { useTheme } from '@/hooks/use-theme';
@@ -29,51 +31,61 @@ export default function RidePublishedRoute() {
       <StatusBar style="dark" />
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={[styles.content, { paddingTop: insets.top + Spacing.five, paddingBottom: TabBarHeight + insets.bottom + Spacing.four }]}>
+        contentContainerStyle={[
+          styles.content,
+          { paddingTop: insets.top + Spacing.four, paddingBottom: TabBarHeight + insets.bottom + Spacing.two },
+        ]}>
         <Animated.View style={[styles.heading, fadeUp]}>
           <View style={styles.badge}>
-            <View style={[styles.badgeIcon, { backgroundColor: theme.statusSuccess }]}>
-              <Icon name="tick" size={14} color="textOnBrand" strokeWidth={2.5} />
-            </View>
-            <ThemedText type="labelSmall" themeColor="statusSuccess">
+            <SvgXml xml={publishedBadgeXml(theme.checkedIn, theme.textOnBrand)} width={20} height={20} />
+            <ThemedText type="labelSmall" themeColor="statusSuccess" style={FigmaLines.l20}>
               Ride published
             </ThemedText>
           </View>
-          <ThemedText type="heading" accessibilityRole="header">
+          <ThemedText type="pageTitle" accessibilityRole="header" style={styles.title}>
             Your ride is live
           </ThemedText>
-          <ThemedText type="hint" themeColor="textWeak">
+          <ThemedText type="body14" themeColor="textWeak">
             Volunteers near Al Karama can now ask for a seat.
           </ThemedText>
         </Animated.View>
 
-        <View style={[styles.well, { backgroundColor: theme.wellCool }]}>
+        <View style={[styles.well, { backgroundColor: theme.tileNeutral }]}>
           <View style={styles.route}>
             <RouteTimeline
               from={{ time: '6:05', place: 'Al Karama Metro, exit 2', note: 'Your pickup point' }}
               to={{ time: '6:30', place: 'Kite Beach · Gate 2', note: 'Drop-off for the briefing' }}
             />
           </View>
-          <View style={[styles.seats, { borderTopColor: theme.divider }]}>
+          <View style={[styles.seats, { borderTopColor: theme.strokeWeak }]}>
             <SeatDots seats={SEATS} open={SEATS} />
-            <ThemedText type="small" themeColor="textWeak">
-              {`${SEATS} seats open · no requests yet`}
-            </ThemedText>
+            <ThemedText type="chip">{`${SEATS} seats open · no requests yet`}</ThemedText>
           </View>
         </View>
 
         <View style={styles.next}>
-          <ThemedText type="labelLarge" accessibilityRole="header">
+          <ThemedText type="labelLarge" accessibilityRole="header" style={FigmaLines.l23}>
             What happens next
           </ThemedText>
-          <Item icon={<Icon name="check" size={18} color="brand" />} text="You approve every request before anyone joins" />
-          <Item icon={<Icon name="chat" size={18} color="brand" strokeWidth={1.5} />} text="Chat opens once you accept a rider" />
-          <Item icon={<Smiley size={18} />} text="+10 Smileys for each rider, on the day" />
+          <Item
+            icon={<SvgXml xml={nextTickXml(theme.fill, theme.brand)} width={24} height={24} />}
+            text="You approve every request before anyone joins"
+          />
+          <Item
+            icon={<SvgXml xml={nextChatXml(theme.fill, theme.brand)} width={24} height={24} />}
+            text="Chat opens once you accept a rider"
+          />
+          <Item icon={<Smiley size={20} />} text="+10 Smileys for each rider, on the day" />
         </View>
 
         <View style={styles.actions}>
-          <Button label="View ride" size="large" onPress={() => router.navigate('/pass')} />
-          <TextButton label="Share ride" onPress={shareRide} />
+          <Button label="View ride" flat onPress={() => router.navigate('/pass')} />
+          {/* Figma "Button / Tertiary": 48 tall, 15 semibold brand. */}
+          <Tappable accessibilityRole="button" accessibilityLabel="Share ride" onPress={shareRide} style={styles.tertiary}>
+            <ThemedText type="buttonPrimary" themeColor="brand">
+              Share ride
+            </ThemedText>
+          </Tappable>
         </View>
       </ScrollView>
       <TabBar active="events" />
@@ -85,7 +97,7 @@ function Item({ icon, text }: { icon: ReactNode; text: string }) {
   return (
     <View style={styles.item}>
       <View style={styles.itemIcon}>{icon}</View>
-      <ThemedText type="hint" style={styles.itemText}>
+      <ThemedText type="body" style={styles.itemText}>
         {text}
       </ThemedText>
     </View>
@@ -96,38 +108,38 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
   },
+  // Figma T10 "Content": 24 under the status bar, 20 sides, 20 between blocks.
   content: {
     flexGrow: 1,
-    gap: Spacing.four,
+    gap: Spacing.threeHalf,
     paddingHorizontal: Spacing.threeHalf,
   },
   heading: {
-    gap: Spacing.oneHalf,
+    gap: Spacing.two,
   },
   badge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.oneHalf,
   },
-  badgeIcon: {
-    width: 20,
-    height: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 10,
+  title: {
+    lineHeight: 39,
   },
   well: {
-    borderRadius: Radius.option,
+    overflow: 'hidden',
+    borderRadius: Radius.card,
   },
   route: {
-    padding: Spacing.three,
-    paddingBottom: 0,
+    paddingTop: Spacing.three,
+    paddingBottom: Spacing.threeLess,
+    paddingHorizontal: Spacing.three,
   },
   seats: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.two,
-    padding: Spacing.three,
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.twoThreeQuarters,
     borderTopWidth: 1,
   },
   next: {
@@ -135,28 +147,35 @@ const styles = StyleSheet.create({
   },
   item: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     gap: Spacing.twoHalf,
   },
   itemIcon: {
-    width: 22,
+    width: 24,
+    height: 24,
     alignItems: 'center',
-    paddingTop: 1,
+    justifyContent: 'center',
   },
   itemText: {
     flex: 1,
   },
-  // Figma pins the actions to the bottom, above the tab bar.
+  // Figma pins the actions to the bottom, 8 above the tab bar.
   actions: {
     marginTop: 'auto',
-    gap: Spacing.three,
+    gap: Spacing.one,
+  },
+  tertiary: {
+    height: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });
 
 /** Opens the phone's share sheet so the driver can tell friends there are seats. */
 function shareRide() {
   Share.share({
-    message: "I'm driving to the Kite Beach cleanup on Sat 5 Dec, leaving Al Karama Metro (exit 2) at 6:05. Ask for a seat in CleanScape.",
+    message:
+      "I'm driving to the Kite Beach cleanup on Sat 5 Dec, leaving Al Karama Metro (exit 2) at 6:05. Ask for a seat in CleanScape.",
   }).catch(() => {
     // The user closed the share sheet or sharing isn't available; nothing to do.
   });
