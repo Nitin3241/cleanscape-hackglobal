@@ -10,9 +10,11 @@ Run locally:
 Open http://localhost:8000
 """
 import os
+import tempfile
+import threading
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from openai import OpenAI
@@ -61,6 +63,25 @@ Demo data for the signed-in user (sample data, not a real person)
 
 SYSTEM_PROMPT = os.getenv("SYSTEM_PROMPT", EARTHY_CONTEXT)
 
+# Speech to text runs on this server (Vultr Cloud Compute) with the open-source Whisper model.
+# "base" fits a 1 GB server. On a bigger server set WHISPER_MODEL=small for better Arabic.
+WHISPER_MODEL = os.getenv("WHISPER_MODEL", "base")
+VOICE_LANGUAGES = ("en", "ar")  # the app's two languages
+MAX_AUDIO_BYTES = 8 * 1024 * 1024  # about a minute of phone audio is well under this
+_whisper = None
+_whisper_lock = threading.Lock()
+
+
+def get_whisper():
+    """Loads the speech model once, on first use, and keeps it in memory."""
+    global _whisper
+    with _whisper_lock:
+        if _whisper is None:
+            from faster_whisper import WhisperModel
+
+            _whisper = WhisperModel(WHISPER_MODEL, device="cpu", compute_type="int8")
+        return _whisper
+
 app = FastAPI(title="Earthy for CleanScape")
 
 # The mobile app (Expo) calls this API from another origin, so allow cross-origin requests.
@@ -88,7 +109,41 @@ def home():
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "model": LLM_MODEL, "configured": bool(LLM_API_KEY and LLM_MODEL)}
+    return {
+        "status": "ok",
+        "model": LLM_MODEL,
+        "configured": bool(LLM_API_KEY and LLM_MODEL),
+        "speech_model": WHISPER_MODEL,
+    }
+
+
+@app.post("/api/transcribe")
+def transcribe(audio: UploadFile = File(...)):
+    """Turns a short voice recording into text. Returns {"text": "...", "language": "en" | "ar"}."""
+    data = audio.file.read(MAX_AUDIO_BYTES + 1)
+    if not data:
+        raise HTTPException(400, "The recording is empty.")
+    if len(data) > MAX_AUDIO_BYTES:
+        raise HTTPException(413, "The recording is too long.")
+    suffix = os.path.splitext(audio.filename or "")[1] or ".m4a"
+    with tempfile.NamedTemporaryFile(suffix=suffix) as clip:
+        clip.write(data)
+        clip.flush()
+        try:
+            model = get_whisper()
+            segments, info = model.transcribe(clip.name, vad_filter=True, beam_size=5)
+            language = info.language
+            if language not in VOICE_LANGUAGES:
+                # A short clip can be mistaken for another language. Keep to the app's two.
+                scores = dict(info.all_language_probs or [])
+                language = max(VOICE_LANGUAGES, key=lambda code: scores.get(code, 0.0))
+                segments, info = model.transcribe(clip.name, vad_filter=True, beam_size=5, language=language)
+            text = " ".join(segment.text.strip() for segment in segments).strip()
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(502, f"Could not read the recording: {e}")
+    return {"text": text, "language": language}
 
 
 @app.post("/api/chat")
