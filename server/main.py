@@ -108,6 +108,8 @@ NOISE_LINES = {
 
 
 def _only_noise(text: str) -> bool:
+    # Speech models label music and other sounds in brackets or with note signs: "[Music]", "(upbeat music)", "♪".
+    text = re.sub(r"[\[(（][^\])）]*[\])）]|[♪♫🎵🎶]", " ", text)
     plain = re.sub(r"[^\w\s]", "", text, flags=re.UNICODE).strip().lower()
     return plain in NOISE_LINES or (len(plain) < 3 and not ARABIC.search(plain))
 
@@ -179,6 +181,7 @@ def transcribe(audio: UploadFile = File(...)):
     if LLM_API_KEY:
         try:
             client = OpenAI(base_url=LLM_BASE_URL, api_key=LLM_API_KEY, timeout=40)
+            began = time.time()
             heard = client.audio.transcriptions.create(
                 model=STT_MODEL, file=(f"question{suffix}", data, audio.content_type or "audio/m4a")
             )
@@ -187,7 +190,7 @@ def transcribe(audio: UploadFile = File(...)):
                 print(f"Heard {len(data)} bytes ({suffix}): nothing but noise ({text!r})", flush=True)
                 text = ""
             # One line per voice question in `docker logs earthy`, to see what was heard (sizes only, no audio kept).
-            print(f"Heard {len(data)} bytes ({suffix}) with {STT_MODEL}: {text!r}", flush=True)
+            print(f"Heard {len(data)} bytes ({suffix}) with {STT_MODEL} in {time.time() - began:.1f} s: {text!r}", flush=True)
             return {"text": text, "language": "ar" if ARABIC.search(text) else "en", "engine": STT_MODEL}
         except Exception as e:
             print(f"Hosted speech to text failed, using the local model: {e}", flush=True)
@@ -565,7 +568,7 @@ def chat(req: ChatRequest):
     client = OpenAI(base_url=LLM_BASE_URL, api_key=LLM_API_KEY, timeout=30)
     messages = [{"role": "system", "content": SYSTEM_PROMPT + ("\n\n" + SPOKEN_STYLE if req.spoken else "")}]
     messages += [m.model_dump() for m in turns[-12:]]  # keep the last 12 turns
-    reply, problem = "", ""
+    reply, problem, began = "", "", time.time()
     for model in dict.fromkeys([SPOKEN_MODEL, LLM_MODEL] if req.spoken and SPOKEN_MODEL else [LLM_MODEL]):
         try:
             result = client.chat.completions.create(model=model, messages=messages, temperature=0.3, max_tokens=900)
@@ -577,6 +580,7 @@ def chat(req: ChatRequest):
             problem = f"LLM request failed: {e}"
     if not reply:
         raise HTTPException(502, problem)
+    print(f"Answered with {model} in {time.time() - began:.1f} s", flush=True)
     if first and first[1] in WARM_QUESTIONS:
         _answers[first] = reply
     return {"reply": reply}
