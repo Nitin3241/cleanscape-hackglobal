@@ -9,6 +9,8 @@ Run locally:
     uvicorn main:app --reload
 Open http://localhost:8000
 """
+import base64
+import io
 import os
 import re
 import tempfile
@@ -19,7 +21,7 @@ from collections import OrderedDict
 import httpx
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response
 from openai import OpenAI
@@ -239,6 +241,101 @@ NOT_SPEAKERS = {
     "swedish", "swahili", "turkish", "chinese",
 }
 TTS_MODELS = ("chatterbox", "qwen3-tts-12hz-1.7b")  # the paid speech models on Vultr Serverless Inference
+
+
+# Show: a photo of an item goes to a model that can see. Not every model on Vultr takes pictures, so these are
+# tried in order and the first one that answers is remembered. Set VISION_MODELS to change the list.
+VISION_MODELS = [m.strip() for m in os.getenv(
+    "VISION_MODELS",
+    "qwen3.8-flash-next,qwen3.8-27b,nemotron-3-nano-omni-30b-a3b-reasoning,mimo-v2.6-flash,glm-5.3-flash,glm-5.3",
+).split(",") if m.strip()]
+_vision_model: str | None = None
+MAX_PHOTO_BYTES = 12 * 1024 * 1024
+LOOK_STYLE = (
+    "The person is showing you a photo of one item and wants to know what it is and where it goes. "
+    "Name the item, then say which bin or drop-off it goes to in Dubai, using the sorting rules above, and one "
+    "short tip if it helps (for example: empty it first). If you cannot tell what the item is, say so and ask "
+    "for a closer photo. Do not guess."
+)
+
+
+def _small_jpeg(data: bytes) -> bytes:
+    """Shrinks a phone photo to at most 1024 px, so it is quick to send and cheap to read."""
+    try:
+        from PIL import Image, ImageOps
+
+        picture = ImageOps.exif_transpose(Image.open(io.BytesIO(data))).convert("RGB")
+        picture.thumbnail((1024, 1024))
+        out = io.BytesIO()
+        picture.save(out, format="JPEG", quality=80)
+        return out.getvalue()
+    except Exception as e:  # not a picture Pillow can read: send it as it came
+        print(f"Could not shrink the photo, sending it as it is: {e}", flush=True)
+        return data
+
+
+def _see(model: str, jpeg: bytes, text: str, system: str) -> str:
+    client = OpenAI(base_url=LLM_BASE_URL, api_key=LLM_API_KEY, timeout=45)
+    picture = "data:image/jpeg;base64," + base64.b64encode(jpeg).decode()
+    result = client.chat.completions.create(
+        model=model,
+        temperature=0.2,
+        max_tokens=900,
+        messages=[
+            {"role": "system", "content": system},
+            {"role": "user", "content": [
+                {"type": "text", "text": text},
+                {"type": "image_url", "image_url": {"url": picture}},
+            ]},
+        ],
+    )
+    return (result.choices[0].message.content or "").strip()
+
+
+@app.post("/api/look")
+def look(photo: UploadFile = File(...), question: str = Form("What is this, and where does it go?")):
+    """Show: says what the item in a photo is and where it goes. Returns {"reply": "...", "model": "..."}."""
+    global _vision_model
+    if not LLM_API_KEY:
+        raise HTTPException(500, "LLM_API_KEY is not set.")
+    data = photo.file.read(MAX_PHOTO_BYTES + 1)
+    if not data:
+        raise HTTPException(400, "The photo is empty.")
+    if len(data) > MAX_PHOTO_BYTES:
+        raise HTTPException(413, "The photo is too large.")
+    jpeg = _small_jpeg(data)
+    system = SYSTEM_PROMPT + "\n\n" + LOOK_STYLE + "\n\n" + SPOKEN_STYLE
+    errors = []
+    for model in ([_vision_model] if _vision_model else []) + [m for m in VISION_MODELS if m != _vision_model]:
+        try:
+            reply = _see(model, jpeg, question[:300], system)
+            if reply:
+                _vision_model = model
+                print(f"Looked at a {len(jpeg)} byte photo with {model}: {reply!r}", flush=True)
+                return {"reply": reply, "model": model}
+            errors.append(f"{model}: empty answer")
+        except Exception as e:
+            errors.append(f"{model}: {str(e)[:160]}")
+    print("No model could look at the photo: " + " | ".join(errors), flush=True)
+    raise HTTPException(502, "No model could look at the photo. " + " | ".join(errors))
+
+
+@app.get("/api/look-check")
+def look_check():
+    """For setup: shows a plain red square to each model in VISION_MODELS and reports which ones can see it."""
+    if not LLM_API_KEY:
+        raise HTTPException(500, "LLM_API_KEY is not set.")
+    from PIL import Image
+
+    out = io.BytesIO()
+    Image.new("RGB", (96, 96), (220, 30, 30)).save(out, format="JPEG")
+    results = {}
+    for model in VISION_MODELS:
+        try:
+            results[model] = _see(model, out.getvalue(), "What colour is this square? Answer with one word.", "Answer briefly.")[:80] or "(empty answer)"
+        except Exception as e:
+            results[model] = f"FAILED: {str(e)[:200]}"
+    return {"in_use": _vision_model, "results": results}
 
 
 class SpeakRequest(BaseModel):
