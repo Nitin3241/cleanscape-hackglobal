@@ -217,8 +217,42 @@ def pick_voice() -> str:
     return _voice
 
 
+TTS_MODELS = ("chatterbox", "qwen3-tts-12hz-1.7b")  # the paid speech models on Vultr Serverless Inference
+
+
 class SpeakRequest(BaseModel):
     text: str = Field(min_length=1, max_length=1200)
+    # Only the voice-picker page sends these two, to try a voice before it is chosen.
+    voice: str | None = Field(default=None, max_length=120)
+    model: str | None = Field(default=None, max_length=120)
+
+
+@app.get("/voices")
+def voices_page():
+    """A page for listening to each voice and choosing Earthy's."""
+    return FileResponse(os.path.join(os.path.dirname(__file__), "static", "voices.html"))
+
+
+@app.get("/api/voice-list")
+def voice_list():
+    """Every (model, voice) pair on offer, in one flat list for the voice-picker page."""
+    if not LLM_API_KEY:
+        raise HTTPException(500, "LLM_API_KEY is not set.")
+    try:
+        raw = _voices_raw()
+    except Exception as e:
+        raise HTTPException(502, f"Could not list voices: {e}")
+    found: list = []
+    _find_voices(raw, found)
+    pairs, seen = [], set()
+    for model in TTS_MODELS:
+        mine = [voice for voice, detail in found if model in detail]
+        # If the list doesn't say which model a voice belongs to, offer every voice under every model.
+        for voice in mine or [voice for voice, _ in found]:
+            if (model, voice) not in seen:
+                seen.add((model, voice))
+                pairs.append({"model": model, "voice": voice})
+    return {"in_use": {"model": TTS_MODEL, "voice": pick_voice()}, "voices": pairs}
 
 
 @app.get("/api/voices")
@@ -238,8 +272,9 @@ def speak(req: SpeakRequest):
     """Turns Earthy's answer into speech on Vultr and returns where to play it: {"url": "/api/audio/<id>"}."""
     if not LLM_API_KEY:
         raise HTTPException(500, "LLM_API_KEY is not set.")
-    body = {"model": TTS_MODEL, "input": req.text.strip(), "response_format": "mp3"}
-    voice = pick_voice()
+    model = req.model or TTS_MODEL
+    body = {"model": model, "input": req.text.strip(), "response_format": "mp3"}
+    voice = req.voice or pick_voice()
     if voice:
         body["voice"] = voice
     try:
@@ -254,7 +289,7 @@ def speak(req: SpeakRequest):
         _audio[clip] = (response.content, kind if kind.startswith("audio/") else "audio/mpeg")
         while len(_audio) > 40:  # keep only the most recent answers in memory
             _audio.popitem(last=False)
-    return {"url": f"/api/audio/{clip}", "voice": voice, "model": TTS_MODEL}
+    return {"url": f"/api/audio/{clip}", "voice": voice, "model": model}
 
 
 @app.get("/api/audio/{clip}")

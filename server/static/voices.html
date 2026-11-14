@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pick Earthy's voice</title>
+<style>
+  :root { --ink:#12252E; --weak:#5B6B73; --brand:#1E6280; --fill:#E6F3F8; --line:#E3E8EB; }
+  * { box-sizing: border-box; }
+  body { margin:0; font:16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; color:var(--ink); background:#fff; }
+  main { max-width:640px; margin:0 auto; padding:24px 16px 64px; }
+  h1 { font-size:24px; margin:0 0 4px; }
+  p { margin:0 0 16px; color:var(--weak); }
+  label { display:block; font-weight:600; margin-bottom:8px; }
+  textarea { width:100%; min-height:88px; padding:12px; font:inherit; color:inherit; border:1px solid #798C94; border-radius:14px; }
+  h2 { font-size:13px; letter-spacing:.06em; text-transform:uppercase; color:var(--weak); margin:24px 0 8px; }
+  ul { list-style:none; margin:0; padding:0; border:1px solid var(--line); border-radius:20px; overflow:hidden; }
+  li { display:flex; align-items:center; gap:12px; padding:10px 12px 10px 16px; border-top:1px solid var(--line); }
+  li:first-child { border-top:0; }
+  li span { flex:1; overflow-wrap:anywhere; }
+  li.current span::after { content:"  ·  in use now"; color:var(--weak); }
+  button { min-width:88px; min-height:48px; padding:0 16px; font:inherit; font-weight:600; color:#fff; background:var(--brand); border:0; border-radius:999px; cursor:pointer; }
+  button[disabled] { opacity:.5; cursor:default; }
+  #status { margin-top:16px; padding:12px 16px; border-radius:14px; background:var(--fill); color:var(--ink); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Pick Earthy's voice</h1>
+  <p>Press Play on each voice. Tell Claude the model and voice name you like best.</p>
+  <label for="line">What Earthy says</label>
+  <textarea id="line">Kite Beach clean-up is on Saturday, seven to ten in the morning. Bring a litre of water, a hat and closed shoes. Gloves and bags are provided.</textarea>
+  <div id="lists"></div>
+  <div id="status" role="status">Loading the voices…</div>
+</main>
+<script>
+const status = document.getElementById('status');
+const lists = document.getElementById('lists');
+let player = null;
+
+async function play(model, voice, button) {
+  const text = document.getElementById('line').value.trim();
+  if (!text) { status.textContent = 'Type a line for Earthy to say first.'; return; }
+  if (player) player.pause();
+  button.disabled = true;
+  status.textContent = 'Making the sound for ' + voice + '…';
+  try {
+    const response = await fetch('/api/speak', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, model, voice }),
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.detail || 'The server answered ' + response.status);
+    player = new Audio(data.url);
+    await player.play();
+    status.textContent = 'Playing: ' + model + ' · ' + voice;
+  } catch (error) {
+    status.textContent = 'That voice did not work: ' + error.message;
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function load() {
+  try {
+    const response = await fetch('/api/voice-list');
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.detail || 'The server answered ' + response.status);
+    if (!data.voices.length) { status.textContent = 'Vultr listed no voices. Send Claude a screenshot of /api/voices.'; return; }
+    const byModel = {};
+    for (const item of data.voices) (byModel[item.model] = byModel[item.model] || []).push(item.voice);
+    for (const model of Object.keys(byModel)) {
+      const heading = document.createElement('h2');
+      heading.textContent = model;
+      const list = document.createElement('ul');
+      for (const voice of byModel[model]) {
+        const row = document.createElement('li');
+        if (data.in_use.model === model && data.in_use.voice === voice) row.className = 'current';
+        const name = document.createElement('span');
+        name.textContent = voice;
+        const button = document.createElement('button');
+        button.textContent = 'Play';
+        button.setAttribute('aria-label', 'Play ' + voice + ' on ' + model);
+        button.addEventListener('click', () => play(model, voice, button));
+        row.append(name, button);
+        list.append(row);
+      }
+      lists.append(heading, list);
+    }
+    status.textContent = data.voices.length + ' voices found. Press Play to listen.';
+  } catch (error) {
+    status.textContent = 'Could not load the voices: ' + error.message;
+  }
+}
+load();
+</script>
+</body>
+</html>
