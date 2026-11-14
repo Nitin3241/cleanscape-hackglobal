@@ -61,6 +61,7 @@ Demo data for the signed-in user (sample data, not a real person)
 - Next clean-up: Kite Beach clean-up, Saturday 5 December, 7 to 10 AM, Umm Suqeim.
   Arrive by 6:45 AM for a 10-minute safety briefing. Her school bus leaves Al Barsha School at 6:15 AM.
 - What to bring: a 1 litre water bottle, hat and sunscreen, closed shoes. Gloves and bags are provided.
+- Forecast for that Saturday morning: sunny, up to 38°C.
 - Friends going: Maya and Omar. Omar has a carpool with 2 seats leaving JLT at 6:30 AM.
 - So far: 14 volunteering hours across 6 clean-ups, 1,240 Smileys.
 - Smileys are reward points earned by joining clean-ups, logging bags and sorting waste correctly.
