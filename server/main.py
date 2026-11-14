@@ -103,7 +103,7 @@ def chat(req: ChatRequest):
     messages += [m.model_dump() for m in turns[-12:]]  # keep the last 12 turns
     try:
         result = client.chat.completions.create(
-            model=LLM_MODEL, messages=messages, temperature=0.3, max_tokens=300
+            model=LLM_MODEL, messages=messages, temperature=0.3, max_tokens=900
         )
     except Exception as e:  # show the provider's error so it's easy to debug
         raise HTTPException(502, f"LLM request failed: {e}")
