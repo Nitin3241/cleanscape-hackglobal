@@ -4,7 +4,7 @@ A bilingual (English and Arabic) app that makes it easy for UAE residents to joi
 
 Built for **HackGlobal 2026** (Polaris School of Technology, powered by Vultr). Track: **Civic and real-world impact**.
 
-- Live demo (Earthy, running on Vultr): `http://YOUR_SERVER_IP` <!-- replace after deploy -->
+- Live demo (Earthy, running on Vultr): http://139.84.154.80
 - Architecture: [docs/architecture.png](docs/architecture.png)
 
 ![Architecture](docs/architecture.png)
