@@ -1,0 +1,395 @@
+{
+  "_readme": "The one file to edit. Change a sound or an active take, then run tools/synth/build.sh. All original: no Apple or other third-party audio is sampled or embedded. Notes must stay in D major pentatonic (D E F# A B). To use your own recording, see tools/synth/recordings/README.md.",
+  "active_takes": {
+    "done": "b"
+  },
+  "takes": {
+    "done": {
+      "a": {
+        "label": "Take A",
+        "words": "Soft bell, 170 ms between strikes.",
+        "gap_ms": 170,
+        "decay_ms": 120,
+        "lowpass_hz": 6000
+      },
+      "b": {
+        "label": "Take B",
+        "words": "Warmer and quicker, 150 ms between strikes.",
+        "gap_ms": 150,
+        "decay_ms": 105,
+        "lowpass_hz": 4500
+      },
+      "c": {
+        "label": "Take C",
+        "words": "Brighter and more open, 190 ms between strikes.",
+        "gap_ms": 190,
+        "decay_ms": 135,
+        "lowpass_hz": 7000
+      }
+    }
+  },
+  "peak_limit_dbfs": -6,
+  "sounds": {
+    "cs-done": {
+      "name": "cs.done",
+      "kind": "bell",
+      "length_ms": 520,
+      "target_lufs": -20,
+      "uses": "The confirmation sound: done, that worked.",
+      "strikes": [
+        {
+          "notes": [
+            "D6",
+            "F#6"
+          ]
+        },
+        {
+          "notes": [
+            "A6"
+          ],
+          "db": -3
+        }
+      ]
+    },
+    "cs-done-single": {
+      "name": "cs.done.single",
+      "kind": "bell",
+      "length_ms": 200,
+      "target_lufs": -20,
+      "strikes": [
+        {
+          "notes": [
+            "A6"
+          ]
+        }
+      ]
+    },
+    "cs-done-reward": {
+      "name": "cs.done.reward",
+      "kind": "bell",
+      "length_ms": 720,
+      "target_lufs": -20,
+      "strikes": [
+        {
+          "notes": [
+            "D6",
+            "F#6"
+          ]
+        },
+        {
+          "notes": [
+            "A6"
+          ],
+          "db": -3
+        },
+        {
+          "notes": [
+            "D7"
+          ],
+          "db": -11
+        }
+      ]
+    },
+    "cs-gentle": {
+      "name": "cs.gentle",
+      "kind": "bell",
+      "length_ms": 320,
+      "lowpass_hz": 2600,
+      "target_lufs": -26,
+      "strikes": [
+        {
+          "notes": [
+            "D5"
+          ]
+        }
+      ]
+    }
+  },
+  "default_on": [
+    "cs-done",
+    "cs-done-reward"
+  ],
+  "signatures": {
+    "done": {
+      "words": "Two taps matching the two strikes",
+      "steps": [
+        {
+          "at": 0,
+          "style": "medium"
+        },
+        {
+          "at": 150,
+          "style": "light"
+        }
+      ],
+      "ahap": {
+        "transients": [
+          [
+            0,
+            0.6,
+            0.5
+          ],
+          [
+            0.15,
+            0.45,
+            0.5
+          ]
+        ]
+      },
+      "android": {
+        "timings": [
+          20,
+          130,
+          15
+        ],
+        "amplitudes": [
+          180,
+          0,
+          120
+        ],
+        "fallback": "EFFECT_DOUBLE_CLICK"
+      }
+    }
+  },
+  "haptic_words": {
+    "none": "None",
+    "selection": "Selection tick",
+    "impact:light": "Light impact",
+    "impact:soft": "Soft impact",
+    "impact:medium": "Medium impact",
+    "impact:rigid": "Rigid impact",
+    "notification:success": "Success",
+    "notification:warning": "Warning",
+    "notification:error": "Error"
+  },
+  "android_predefined": {
+    "selection": "EFFECT_TICK",
+    "impact:light": "EFFECT_TICK",
+    "impact:soft": "EFFECT_TICK",
+    "impact:medium": "EFFECT_CLICK",
+    "impact:rigid": "EFFECT_HEAVY_CLICK",
+    "notification:success": "EFFECT_DOUBLE_CLICK",
+    "notification:warning": "EFFECT_HEAVY_CLICK",
+    "notification:error": "EFFECT_HEAVY_CLICK"
+  },
+  "events": [
+    {
+      "id": "launch.logo",
+      "area": "Launch",
+      "label": "Splash on first launch",
+      "sound": "cs-done",
+      "haptic": "signature:done",
+      "once": true
+    },
+    {
+      "id": "onboarding.goodToGo",
+      "area": "Onboarding",
+      "label": "\"You're good to go\"",
+      "sound": "cs-done",
+      "haptic": "signature:done"
+    },
+    {
+      "id": "pledge.signed",
+      "area": "Onboarding",
+      "label": "Pledge signed",
+      "sound": "cs-done",
+      "haptic": "signature:done"
+    },
+    {
+      "id": "auth.codeAccepted",
+      "area": "Onboarding",
+      "label": "Phone code accepted",
+      "sound": null,
+      "haptic": "impact:light",
+      "added": "Confirms a check the user can't see happen."
+    },
+    {
+      "id": "nav.tab",
+      "area": "Navigation",
+      "label": "Tab switch",
+      "sound": null,
+      "haptic": "selection"
+    },
+    {
+      "id": "button.primary",
+      "area": "Buttons",
+      "label": "Primary press",
+      "sound": null,
+      "haptic": "impact:light"
+    },
+    {
+      "id": "toggle.on",
+      "area": "Toggles / chips",
+      "label": "On",
+      "sound": null,
+      "haptic": "selection"
+    },
+    {
+      "id": "toggle.off",
+      "area": "Toggles / chips",
+      "label": "Off",
+      "sound": null,
+      "haptic": "selection"
+    },
+    {
+      "id": "filter.applied",
+      "area": "Toggles / chips",
+      "label": "Filter applied",
+      "sound": "cs-done-single",
+      "haptic": "impact:light"
+    },
+    {
+      "id": "register.success",
+      "area": "Events",
+      "label": "Registered",
+      "sound": "cs-done",
+      "haptic": "signature:done"
+    },
+    {
+      "id": "register.cancel",
+      "area": "Events",
+      "label": "Cancel registration",
+      "sound": null,
+      "haptic": "impact:soft"
+    },
+    {
+      "id": "checkin.success",
+      "area": "Check-in",
+      "label": "Checked in by QR",
+      "sound": "cs-done",
+      "haptic": "signature:done",
+      "essential": true
+    },
+    {
+      "id": "checkin.invalid",
+      "area": "Check-in",
+      "label": "QR not recognised",
+      "sound": "cs-gentle",
+      "haptic": "notification:warning",
+      "added": "People scan outdoors in glare, so a failed scan must be noticed."
+    },
+    {
+      "id": "bin.correct",
+      "area": "Scan & sort",
+      "label": "Correct bin",
+      "sound": "cs-done-single",
+      "haptic": "impact:light"
+    },
+    {
+      "id": "bin.tryAgain",
+      "area": "Scan & sort",
+      "label": "Wrong bin / not recyclable",
+      "sound": "cs-gentle",
+      "haptic": "notification:warning"
+    },
+    {
+      "id": "rewards.smileys",
+      "area": "Rewards",
+      "label": "Smileys earned",
+      "sound": "cs-done-reward",
+      "haptic": "signature:done",
+      "cooldown_ms": 2000
+    },
+    {
+      "id": "impact.milestone",
+      "area": "Impact",
+      "label": "Impact milestone",
+      "sound": "cs-done-reward",
+      "haptic": "signature:done"
+    },
+    {
+      "id": "voice.open",
+      "area": "Voice guide",
+      "label": "Sheet opens",
+      "sound": null,
+      "haptic": "impact:light"
+    },
+    {
+      "id": "voice.close",
+      "area": "Voice guide",
+      "label": "Sheet closes",
+      "sound": null,
+      "haptic": "impact:soft"
+    },
+    {
+      "id": "voice.listen",
+      "area": "Voice guide",
+      "label": "Start listening",
+      "sound": null,
+      "haptic": "impact:soft"
+    },
+    {
+      "id": "voice.gotIt",
+      "area": "Voice guide",
+      "label": "Got it",
+      "sound": "cs-done",
+      "haptic": "signature:done"
+    },
+    {
+      "id": "voice.notUnderstood",
+      "area": "Voice guide",
+      "label": "Not understood / noisy",
+      "sound": "cs-gentle",
+      "haptic": "notification:warning"
+    },
+    {
+      "id": "voice.unavailable",
+      "area": "Voice guide",
+      "label": "Offline / mic off",
+      "sound": null,
+      "haptic": "notification:warning"
+    },
+    {
+      "id": "voice.results",
+      "area": "Voice guide",
+      "label": "Results ready",
+      "sound": null,
+      "haptic": "impact:light",
+      "added": "Marks the end of a wait the user may have looked away from."
+    },
+    {
+      "id": "map.expand",
+      "area": "Map",
+      "label": "Map expands",
+      "sound": null,
+      "haptic": "impact:soft"
+    },
+    {
+      "id": "map.minimise",
+      "area": "Map",
+      "label": "Map minimises",
+      "sound": null,
+      "haptic": "impact:soft"
+    },
+    {
+      "id": "map.waze",
+      "area": "Map",
+      "label": "Open in Waze",
+      "sound": null,
+      "haptic": "impact:light"
+    },
+    {
+      "id": "form.error",
+      "area": "Forms",
+      "label": "Validation error (once per submit)",
+      "sound": "cs-gentle",
+      "haptic": "notification:warning"
+    },
+    {
+      "id": "notification.banner",
+      "area": "Notifications",
+      "label": "In-app banner",
+      "sound": "cs-done-single",
+      "haptic": "impact:light",
+      "volume": 0.4,
+      "skipHapticWhileTyping": true
+    },
+    {
+      "id": "refresh.threshold",
+      "area": "Pull to refresh",
+      "label": "Threshold reached",
+      "sound": null,
+      "haptic": "selection"
+    }
+  ]
+}

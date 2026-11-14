@@ -1,0 +1,27 @@
+{
+  "predefined": {
+    "selection": "EFFECT_TICK",
+    "impact:light": "EFFECT_TICK",
+    "impact:soft": "EFFECT_TICK",
+    "impact:medium": "EFFECT_CLICK",
+    "impact:rigid": "EFFECT_HEAVY_CLICK",
+    "notification:success": "EFFECT_DOUBLE_CLICK",
+    "notification:warning": "EFFECT_HEAVY_CLICK",
+    "notification:error": "EFFECT_HEAVY_CLICK"
+  },
+  "waveforms": {
+    "done": {
+      "timings": [
+        20,
+        130,
+        15
+      ],
+      "amplitudes": [
+        180,
+        0,
+        120
+      ],
+      "fallback": "EFFECT_DOUBLE_CLICK"
+    }
+  }
+}

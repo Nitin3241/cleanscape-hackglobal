@@ -1,0 +1,17 @@
+flowchart TB
+  Judge["Judges, in a browser"]
+  subgraph Phone["Phone, running in Expo Go"]
+    direction LR
+    App["CleanScape app<br/>React Native + Expo"]
+    Sample["Sample data<br/>events, pass, Smileys"]
+    App --- Sample
+  end
+  subgraph Vultr["Vultr"]
+    direction LR
+    Web["Ask Earthy web page<br/>the live demo"]
+    API["Earthy API<br/>FastAPI in Docker<br/>on Cloud Compute"]
+    LLM["Vultr Serverless Inference<br/>OpenAI-compatible model"]
+    Web --> API --> LLM
+  end
+  App -->|"typed question"| API
+  Judge --> Web

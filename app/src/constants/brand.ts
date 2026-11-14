@@ -1,0 +1,26 @@
+/**
+ * CleanScape logomark: white glyph on a #1E6280 rounded square (radius about 23% of the size).
+ * Source: assets/brand/cleanscape-logomark.svg, a redraw from the 8 Nov design handoff.
+ * Brand only. Earthy, the AI, uses its own orb and never this mark.
+ */
+export const logomarkTileXml = `<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120" viewBox="0 0 120 120">
+  <rect width="120" height="120" rx="28" fill="#1E6280"/>
+  <g transform="translate(60 60) scale(1.1) translate(-62 -58.5)" fill="#fff">
+    <path d="M48 50 A26 27.5 0 1 0 72 50" fill="none" stroke="#fff" stroke-width="7" stroke-linecap="round"/>
+    <path d="M43 72 Q60 64 77 72 Q77 92 60 94 Q43 92 43 72 Z"/>
+    <path d="M52.5 53 L67.5 53 L66 40 L54 40 Z"/>
+    <path d="M57 42 Q46 29 34 33 Q42 45 57 44.5 Z"/>
+    <path d="M63 42.5 Q70 25 93 19 Q89 41 64 46 Z"/>
+  </g>
+</svg>`;
+
+/** The logomark glyph alone, white on transparent, for wallet pass headers. */
+export const logomarkGlyphXml = `<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120" viewBox="0 0 120 120">
+  <g transform="translate(60 60) scale(1.1) translate(-62 -58.5)" fill="#fff">
+    <path d="M48 50 A26 27.5 0 1 0 72 50" fill="none" stroke="#fff" stroke-width="7" stroke-linecap="round"/>
+    <path d="M43 72 Q60 64 77 72 Q77 92 60 94 Q43 92 43 72 Z"/>
+    <path d="M52.5 53 L67.5 53 L66 40 L54 40 Z"/>
+    <path d="M57 42 Q46 29 34 33 Q42 45 57 44.5 Z"/>
+    <path d="M63 42.5 Q70 25 93 19 Q89 41 64 46 Z"/>
+  </g>
+</svg>`;

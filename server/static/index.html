@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ask Earthy · CleanScape</title>
+  <style>
+    :root { --brand: #1E6280; --ink: #12252E; --weak: #50636B; --fill: #E6F3F8; --line: #E3E8EB; --tile: #F2F5F7; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; background: #fff; color: var(--ink); }
+    main { max-width: 640px; margin: 0 auto; padding: 24px 16px 16px; display: flex; flex-direction: column; height: 100dvh; }
+    header { display: flex; align-items: center; gap: 12px; padding-bottom: 12px; }
+    .orb { width: 40px; height: 40px; border-radius: 50%; background: linear-gradient(135deg, #1E6280, #5FB3C9 55%, #F2A516); flex: none; }
+    h1 { font-size: 20px; margin: 0; }
+    header p { margin: 2px 0 0; font-size: 13px; color: var(--weak); }
+    .note { font-size: 12px; color: var(--weak); background: var(--tile); border-radius: 12px; padding: 10px 12px; margin-bottom: 12px; line-height: 1.45; }
+    #chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+    #chips button { background: var(--fill); color: var(--brand); border: 0; border-radius: 999px; padding: 8px 14px; font-size: 13px; cursor: pointer; }
+    #log { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding-bottom: 12px; }
+    .msg { padding: 11px 16px; border-radius: 22px; max-width: 85%; white-space: pre-wrap; line-height: 1.45; font-size: 15px; }
+    .user { align-self: flex-end; background: var(--tile); border-bottom-right-radius: 6px; }
+    .assistant { align-self: flex-start; background: var(--fill); border-bottom-left-radius: 6px; }
+    .pending { align-self: flex-start; color: var(--weak); font-size: 14px; }
+    .error { align-self: center; color: #B3261E; font-size: 14px; text-align: center; }
+    form { display: flex; gap: 8px; }
+    input { flex: 1; padding: 0 18px; height: 52px; border: 1px solid var(--line); border-radius: 999px; font-size: 15px; outline: none; }
+    input:focus { border-color: var(--brand); }
+    form button { height: 52px; padding: 0 22px; border: 0; border-radius: 999px; background: var(--brand); color: #fff; font-size: 15px; font-weight: 600; cursor: pointer; }
+    button:disabled { opacity: 0.5; cursor: default; }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div class="orb" aria-hidden="true"></div>
+      <div>
+        <h1>Ask Earthy</h1>
+        <p>The assistant inside CleanScape, the UAE community clean-up app</p>
+      </div>
+    </header>
+    <div class="note">Live demo for HackGlobal 2026. Earthy runs on Vultr and answers from sample data for one demo volunteer, Sara. It can make mistakes; check event details with the organiser.</div>
+    <div id="chips">
+      <button type="button">When is my next clean-up?</button>
+      <button type="button">What should I bring?</button>
+      <button type="button">Which bin for a pizza box?</button>
+      <button type="button">I feel dizzy in the heat</button>
+    </div>
+    <div id="log" aria-live="polite"></div>
+    <form id="form">
+      <input id="input" placeholder="Ask about clean-ups, sorting or safety" autocomplete="off" required maxlength="500" />
+      <button id="send">Send</button>
+    </form>
+  </main>
+  <script>
+    const log = document.getElementById("log");
+    const form = document.getElementById("form");
+    const input = document.getElementById("input");
+    const send = document.getElementById("send");
+    const messages = [];
+
+    function add(role, text) {
+      const div = document.createElement("div");
+      div.className = "msg " + role;
+      div.textContent = text;
+      log.appendChild(div);
+      log.scrollTop = log.scrollHeight;
+      return div;
+    }
+
+    async function ask(text) {
+      if (!text || send.disabled) return;
+      add("user", text);
+      messages.push({ role: "user", content: text });
+      send.disabled = true;
+      const pending = add("pending", "Earthy is thinking…");
+      try {
+        const res = await fetch("/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ messages }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || "Something went wrong");
+        pending.remove();
+        add("assistant", data.reply);
+        messages.push({ role: "assistant", content: data.reply });
+      } catch (err) {
+        pending.remove();
+        messages.pop();
+        add("error", "Earthy could not answer: " + err.message);
+      } finally {
+        send.disabled = false;
+        input.focus();
+      }
+    }
+
+    form.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const text = input.value.trim();
+      input.value = "";
+      ask(text);
+    });
+    document.querySelectorAll("#chips button").forEach((b) => b.addEventListener("click", () => ask(b.textContent)));
+  </script>
+</body>
+</html>

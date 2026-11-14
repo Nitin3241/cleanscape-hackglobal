@@ -1,0 +1,41 @@
+{
+  "Version": 1.0,
+  "Metadata": {
+    "Project": "CleanScape",
+    "Description": "Two taps matching the two strikes"
+  },
+  "Pattern": [
+    {
+      "Event": {
+        "Time": 0,
+        "EventType": "HapticTransient",
+        "EventParameters": [
+          {
+            "ParameterID": "HapticIntensity",
+            "ParameterValue": 0.6
+          },
+          {
+            "ParameterID": "HapticSharpness",
+            "ParameterValue": 0.5
+          }
+        ]
+      }
+    },
+    {
+      "Event": {
+        "Time": 0.15,
+        "EventType": "HapticTransient",
+        "EventParameters": [
+          {
+            "ParameterID": "HapticIntensity",
+            "ParameterValue": 0.45
+          },
+          {
+            "ParameterID": "HapticSharpness",
+            "ParameterValue": 0.5
+          }
+        ]
+      }
+    }
+  ]
+}

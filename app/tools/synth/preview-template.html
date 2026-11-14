@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CleanScape sounds</title>
+<style>
+/*FONTS*/
+:root{--brand:#1E6280;--brand-pressed:#154A62;--fill:#E6F3F8;--strong:#12252E;--weak:#50636B;--stroke:#EFE6D8;--control:#D9DEE1;--surface:#F2EADD;--white:#fff}
+*{box-sizing:border-box}
+body{margin:0;background:var(--white);color:var(--strong);font:400 14px/20px Poppins,system-ui,sans-serif}
+header.top{background:linear-gradient(125deg,#1E6280 8%,#1F6A8A 44%,#2A8FA8 88%);color:var(--white);padding:32px 16px 24px;border-radius:0 0 11px 11px}
+.wrap{max-width:1040px;margin:0 auto}
+h1{font-weight:600;font-size:24px;line-height:32px;margin:0 0 4px}
+header.top p{margin:0;color:var(--fill);max-width:620px}
+main{padding:0 16px 48px}
+.controls{position:sticky;top:0;z-index:2;background:var(--white);padding:12px 0;border-bottom:1px solid var(--stroke);display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.chip{font:400 13px/20px Poppins,system-ui,sans-serif;color:var(--strong);background:var(--white);border:1px solid var(--control);border-radius:99px;padding:7px 11px;cursor:pointer;transition:background .15s,border-color .15s,color .15s}
+.chip[aria-pressed=true]{background:var(--brand);border-color:var(--brand);color:var(--white);font-weight:500}
+.status{flex-basis:100%;margin:0;color:var(--weak);font-size:13px;min-height:20px}
+h2{font-weight:600;font-size:16px;line-height:24px;margin:32px 0 12px}
+.lead{color:var(--weak);margin:-8px 0 12px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px}
+.card{border:1px solid var(--stroke);border-radius:16px;padding:16px;display:flex;flex-direction:column;gap:8px;min-width:0}
+.card header{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
+h3{font-weight:600;font-size:14px;line-height:20px;margin:0}
+code{font:400 12px/18px ui-monospace,Menlo,monospace;color:var(--weak);overflow-wrap:anywhere}
+.play{flex:none;font:600 13px/18px Poppins,system-ui,sans-serif;color:var(--white);background:var(--brand);border:0;border-radius:99px;padding:8px 16px;min-height:36px;cursor:pointer}
+.play:hover{background:var(--brand-pressed)}
+.play.muted{background:var(--surface);color:var(--weak)}
+svg{display:block;width:100%;height:40px;fill:var(--brand)}
+dl{display:flex;flex-wrap:wrap;gap:4px 16px;margin:0}
+dl div{display:flex;gap:4px}
+dt{color:var(--weak);font-size:12px}
+dd{margin:0;font-size:12px;font-weight:500}
+p{margin:0}
+.hint{font-size:13px;color:var(--weak)}
+.segments{display:inline-flex;align-self:flex-start;background:var(--surface);border-radius:99px;padding:3px}
+.segments button{font:500 13px/18px Poppins,system-ui,sans-serif;color:var(--weak);background:none;border:0;border-radius:99px;padding:6px 14px;min-height:36px;cursor:pointer}
+.segments button[aria-pressed=true]{background:var(--brand);color:var(--white);font-weight:600}
+.tag{font-size:12px;font-weight:500;color:var(--brand)}
+.tag.off{color:var(--weak);font-weight:400}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{font-weight:500;text-align:left;color:var(--weak)}
+th,td{padding:8px 12px 8px 0;border-bottom:1px solid var(--stroke);vertical-align:top}
+.table{overflow-x:auto}
+:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+@media (prefers-reduced-motion:reduce){.chip{transition:none}}
+</style>
+</head>
+<body>
+<header class="top"><div class="wrap">
+  <h1>CleanScape sounds</h1>
+  <p>All original and synthesised. This page has the audio built in, so it works offline.</p>
+</div></header>
+<main><div class="wrap">
+  <div class="controls" role="group" aria-label="Simulate app rules">
+    <button type="button" class="chip" id="all" aria-pressed="false">All sounds</button>
+    <button type="button" class="chip" id="kid" aria-pressed="false">Kid mode</button>
+    <button type="button" class="chip" id="quiet" aria-pressed="false">Quiet hours</button>
+    <p class="status" id="status" role="status" aria-live="polite"></p>
+  </div>
+  <section>
+    <h2>The signature sound</h2>
+    <p class="lead">The take the app uses is selected first. Compare the others any time.</p>
+    <div class="grid" id="signatures"></div>
+  </section>
+  <section>
+    <h2>Variations</h2>
+    <p class="lead" id="built-from"></p>
+    <div class="grid" id="variants"></div>
+  </section>
+  <section>
+    <h2>Where each one plays</h2>
+    <div class="table"><table><thead><tr><th>Event</th><th>Sound</th><th>Haptic</th></tr></thead><tbody id="events"></tbody></table></div>
+  </section>
+</div></main>
+<script>
+const DATA = /*DATA*/{};
+const TAKES = /*TAKES*/{};
+const SOUNDS = /*SOUNDS*/[];
+const EVENTS = /*EVENTS*/[];
+const KID_VOLUME = 0.7;
+const toggles = {all: false, kid: false, quiet: false};
+const status = document.getElementById('status');
+const buffers = {};
+let context;
+
+function decode(base64) {
+  const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
+  return context.decodeAudioData(bytes.buffer);
+}
+
+async function hear(file, label) {
+  try {
+    context ??= new (window.AudioContext || window.webkitAudioContext)();
+    if (context.state === 'suspended') await context.resume();
+    buffers[file] ??= decode(DATA[file].audio);
+    const source = context.createBufferSource();
+    const gain = context.createGain();
+    source.buffer = await buffers[file];
+    gain.gain.value = toggles.kid ? KID_VOLUME : 1;
+    source.connect(gain).connect(context.destination);
+    source.start();
+    status.textContent = 'Playing ' + label;
+  } catch {
+    status.textContent = 'This browser could not play the sound.';
+  }
+}
+
+function blockedReason(on) {
+  if (toggles.quiet) return 'Silent during quiet hours';
+  if (!on && !toggles.all) return 'Off until "All sounds" is on';
+  return null;
+}
+
+function stats(info) {
+  return `<svg viewBox="0 0 192 40" preserveAspectRatio="none" role="img" aria-label="Waveform">${info.wave}</svg>` +
+    `<dl><div><dt>Length</dt><dd>${info.ms} ms</dd></div><div><dt>Peak</dt><dd>${info.peak} dBFS</dd></div>` +
+    `<div><dt>Loudness</dt><dd>${info.loud} LUFS-eq</dd></div></dl>`;
+}
+
+Object.entries(TAKES).forEach(([base, group]) => {
+  const card = document.createElement('article');
+  card.className = 'card';
+  let picked = group.active;
+  card.innerHTML = `<header><div><h3>${group.name}</h3><p class="hint">${group.uses}</p></div>` +
+    '<button type="button" class="play">Play</button></header>' +
+    '<div class="segments" role="group" aria-label="Takes"></div><p class="hint words"></p><div class="figure"></div>';
+  const segments = card.querySelector('.segments');
+  const show = () => {
+    segments.querySelectorAll('button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.take === picked)));
+    card.querySelector('.words').textContent = group.takes[picked].words;
+    card.querySelector('.figure').innerHTML = stats(DATA[`${base}-${picked}`]);
+  };
+  Object.entries(group.takes).forEach(([key, take]) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.dataset.take = key;
+    button.textContent = take.label;
+    button.addEventListener('click', () => {
+      picked = key;
+      show();
+      hear(`${base}-${key}`, `${group.name}, ${take.label}`);
+    });
+    segments.append(button);
+  });
+  card.querySelector('.play').addEventListener('click', () => hear(`${base}-${picked}`, `${group.name}, ${group.takes[picked].label}`));
+  show();
+  document.getElementById('signatures').append(card);
+});
+
+SOUNDS.filter((sound) => !TAKES[sound.file]).forEach((sound) => {
+  const card = document.createElement('article');
+  card.className = 'card';
+  card.dataset.on = String(sound.on);
+  card.innerHTML = `<header><div><h3>${sound.name}</h3><p class="tag state"></p></div>` +
+    `<button type="button" class="play" aria-label="Play ${sound.name}">Play</button></header>` +
+    stats(DATA[sound.file]) + `<p class="hint">${sound.uses.join(', ')}</p>`;
+  card.querySelector('.play').addEventListener('click', () => {
+    const reason = blockedReason(sound.on);
+    if (reason) status.textContent = reason;
+    else hear(sound.file, sound.name);
+  });
+  document.getElementById('variants').append(card);
+});
+
+document.getElementById('events').innerHTML = EVENTS.map((e) =>
+  `<tr><td>${e.label}<br><code>${e.id}</code></td><td>${e.name ?? 'Silent'}</td><td>${e.haptic}</td></tr>`).join('');
+
+function refresh() {
+  document.querySelectorAll('#variants .card').forEach((card) => {
+    const on = card.dataset.on === 'true';
+    const reason = blockedReason(on);
+    const state = card.querySelector('.state');
+    state.textContent = reason ?? 'Plays in the app';
+    state.classList.toggle('off', !!reason);
+    card.querySelector('.play').classList.toggle('muted', !!reason);
+  });
+}
+
+document.querySelectorAll('.chip').forEach((chip) => chip.addEventListener('click', () => {
+  toggles[chip.id] = !toggles[chip.id];
+  chip.setAttribute('aria-pressed', String(toggles[chip.id]));
+  refresh();
+}));
+document.getElementById('built-from').textContent = 'Built from ' + Object.values(TAKES).map((g) => g.name + ' ' + g.takes[g.active].label).join(' and ') + '.';
+refresh();
+</script>
+</body>
+</html>
