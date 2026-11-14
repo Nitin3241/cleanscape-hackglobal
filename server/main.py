@@ -72,8 +72,12 @@ SYSTEM_PROMPT = os.getenv("SYSTEM_PROMPT", EARTHY_CONTEXT)
 # Voice, both ways, on Vultr Serverless Inference (the audio routes follow the OpenAI shapes):
 # speech to text with Whisper Large V3 Turbo, and text to speech for Earthy's own voice.
 STT_MODEL = os.getenv("STT_MODEL", "whisper-large-v3-turbo")
-TTS_MODEL = os.getenv("TTS_MODEL", "chatterbox")
-TTS_VOICE = os.getenv("TTS_VOICE", "")  # empty: pick the first voice Vultr lists for the model
+# Earthy's voice is "aiden" on Qwen3 TTS (chosen by Nitin, 14 Nov). That model has no Arabic, so an Arabic
+# answer is read by Chatterbox's default voice instead.
+TTS_MODEL = os.getenv("TTS_MODEL", "qwen3-tts-12hz-1.7b")
+TTS_VOICE = os.getenv("TTS_VOICE", "aiden")  # empty: pick the first voice Vultr lists for the model
+ARABIC_TTS_MODEL = os.getenv("ARABIC_TTS_MODEL", "chatterbox")
+ARABIC_TTS_VOICE = os.getenv("ARABIC_TTS_VOICE", "default")
 ARABIC = re.compile("[\u0600-\u06FF]")
 _audio: "OrderedDict[str, tuple[bytes, str]]" = OrderedDict()  # spoken answers waiting to be played
 _audio_lock = threading.Lock()
@@ -285,9 +289,13 @@ def speak(req: SpeakRequest):
     """Turns Earthy's answer into speech on Vultr and returns where to play it: {"url": "/api/audio/<id>"}."""
     if not LLM_API_KEY:
         raise HTTPException(500, "LLM_API_KEY is not set.")
-    model = req.model or TTS_MODEL
+    if req.model or req.voice:  # the voice-picker page trying a voice
+        model, voice = req.model or TTS_MODEL, req.voice or pick_voice()
+    elif ARABIC.search(req.text):
+        model, voice = ARABIC_TTS_MODEL, ARABIC_TTS_VOICE
+    else:
+        model, voice = TTS_MODEL, pick_voice()
     body = {"model": model, "input": req.text.strip(), "response_format": "mp3"}
-    voice = req.voice or pick_voice()
     if voice:
         body["voice"] = voice
     try:
