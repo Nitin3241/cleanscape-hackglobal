@@ -15,6 +15,7 @@ import os
 import re
 import tempfile
 import threading
+import time
 import uuid
 from collections import OrderedDict
 
@@ -320,6 +321,33 @@ def look(photo: UploadFile = File(...), question: str = Form("What is this, and 
     raise HTTPException(502, "No model could look at the photo. " + " | ".join(errors))
 
 
+@app.get("/api/speed-check")
+def speed_check(models: str = ""):
+    """For setup: times a short spoken-style answer on several models, to choose the quickest. ?models=a,b,c"""
+    if not LLM_API_KEY:
+        raise HTTPException(500, "LLM_API_KEY is not set.")
+    names = [m.strip() for m in models.split(",") if m.strip()] or [
+        LLM_MODEL, "qwen3.8-flash-next", "mimo-v2.6-flash", "minimax-m3.1-flash", "deepseek-v4.1-flash-1017", "glm-5.3",
+    ]
+    client = OpenAI(base_url=LLM_BASE_URL, api_key=LLM_API_KEY, timeout=40)
+    results = {}
+    for model in dict.fromkeys(names):
+        began = time.time()
+        try:
+            result = client.chat.completions.create(
+                model=model, temperature=0.3, max_tokens=900,
+                messages=[
+                    {"role": "system", "content": SYSTEM_PROMPT + "\n\n" + SPOKEN_STYLE},
+                    {"role": "user", "content": "Which bin does a yoghurt tub go in?"},
+                ],
+            )
+            reply = (result.choices[0].message.content or "").strip()
+            results[model] = {"seconds": round(time.time() - began, 1), "reply": reply[:160] or "(empty answer)"}
+        except Exception as e:
+            results[model] = {"seconds": round(time.time() - began, 1), "reply": f"FAILED: {str(e)[:160]}"}
+    return {"in_use": LLM_MODEL, "results": results}
+
+
 @app.get("/api/look-check")
 def look_check():
     """For setup: shows a plain red square to each model in VISION_MODELS and reports which ones can see it."""
@@ -397,6 +425,11 @@ def speak(req: SpeakRequest):
     """Turns Earthy's answer into speech on Vultr and returns where to play it: {"url": "/api/audio/<id>"}."""
     if not LLM_API_KEY:
         raise HTTPException(500, "LLM_API_KEY is not set.")
+    text = req.text.strip()
+    if not (req.model or req.voice) and text in _clips:
+        with _audio_lock:
+            if _clips[text] in _audio:
+                return {"url": f"/api/audio/{_clips[text]}", "prepared": True}
     if req.model or req.voice:  # the voice-picker page trying a voice
         model, voice = req.model or TTS_MODEL, req.voice or pick_voice()
     elif ARABIC.search(req.text):
@@ -414,10 +447,14 @@ def speak(req: SpeakRequest):
     if response.status_code != 200 or not response.content or kind.startswith("application/json"):
         raise HTTPException(502, f"Speech request failed ({response.status_code}): {response.text[:300]}")
     clip = uuid.uuid4().hex
+    keep = not (req.model or req.voice) and text in _answers.values()  # a built-in question's answer
     with _audio_lock:
         _audio[clip] = (response.content, kind if kind.startswith("audio/") else "audio/mpeg")
-        while len(_audio) > 40:  # keep only the most recent answers in memory
-            _audio.popitem(last=False)
+        if keep:
+            _clips[text] = clip
+        # Keep the built-in answers' clips, and only the most recent of the rest.
+        for old in [key for key in _audio if key not in _clips.values()][:-40]:
+            del _audio[old]
     return {"url": f"/api/audio/{clip}", "voice": voice, "model": model}
 
 
@@ -430,6 +467,40 @@ def audio_clip(clip: str):
     return Response(content=found[0], media_type=found[1])
 
 
+# The questions the app offers as buttons (its cards and suggestions). Their answers and voice clips are made
+# once, when the server starts, and kept in memory, so a tap is answered at once. They are real model answers,
+# just not regenerated on every tap. A question someone types or speaks is always answered fresh.
+WARM_QUESTIONS = (
+    "When and where is my next clean-up, and when should I arrive?",
+    "It will be 38°C on Saturday. How do I stay safe in the heat at the clean-up?",
+    "How do I get to the clean-up on Saturday?",
+    "What should I bring on Saturday?",
+    "Which bin does a pizza box go in?",
+    "Which of my friends are coming?",
+    "How many hours have I volunteered?",
+)
+_answers: dict[tuple[bool, str], str] = {}  # (spoken, question) -> reply, for a conversation's first question
+_clips: dict[str, str] = {}  # answer text -> clip id in _audio, for the warm answers
+
+
+def _warm():
+    """Runs in the background at start-up: answers the app's built-in questions and makes their voice clips."""
+    if not (LLM_API_KEY and LLM_MODEL):
+        return
+    for question in WARM_QUESTIONS:
+        try:
+            reply = chat(ChatRequest(messages=[Message(role="user", content=question)], spoken=True))["reply"]
+            speak(SpeakRequest(text=reply))
+        except Exception as e:
+            print(f"Could not prepare {question!r}: {getattr(e, 'detail', e)}", flush=True)
+    print(f"Prepared {len(_answers)} answers and {len(_clips)} voice clips.", flush=True)
+
+
+@app.on_event("startup")
+def start_warming():
+    threading.Thread(target=_warm, daemon=True).start()
+
+
 @app.post("/api/chat")
 def chat(req: ChatRequest):
     if not LLM_API_KEY or not LLM_MODEL:
@@ -437,6 +508,9 @@ def chat(req: ChatRequest):
     turns = [m for m in req.messages if m.role in ("user", "assistant") and m.content.strip()]
     if not turns or turns[-1].role != "user":
         raise HTTPException(400, "Send at least one user message, last.")
+    first = (req.spoken, turns[0].content.strip()) if len(turns) == 1 else None
+    if first and first in _answers:
+        return {"reply": _answers[first], "prepared": True}
     client = OpenAI(base_url=LLM_BASE_URL, api_key=LLM_API_KEY, timeout=30)
     messages = [{"role": "system", "content": SYSTEM_PROMPT + ("\n\n" + SPOKEN_STYLE if req.spoken else "")}]
     messages += [m.model_dump() for m in turns[-12:]]  # keep the last 12 turns
@@ -449,4 +523,6 @@ def chat(req: ChatRequest):
     reply = (result.choices[0].message.content or "").strip()
     if not reply:
         raise HTTPException(502, "The model returned an empty answer.")
+    if first and first[1] in WARM_QUESTIONS:
+        _answers[first] = reply
     return {"reply": reply}
