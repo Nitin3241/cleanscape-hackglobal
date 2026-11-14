@@ -121,6 +121,14 @@ class Message(BaseModel):
 
 class ChatRequest(BaseModel):
     messages: list[Message]
+    # True when the app will read the reply aloud: shorter answers are quicker to turn into speech.
+    spoken: bool = False
+
+
+SPOKEN_STYLE = (
+    "This reply will be read aloud. Use at most two short sentences, about 30 words in total. "
+    "Plain words only: no lists, no symbols, no abbreviations. Write times as people say them."
+)
 
 
 @app.get("/")
@@ -333,7 +341,7 @@ def chat(req: ChatRequest):
     if not turns or turns[-1].role != "user":
         raise HTTPException(400, "Send at least one user message, last.")
     client = OpenAI(base_url=LLM_BASE_URL, api_key=LLM_API_KEY, timeout=30)
-    messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+    messages = [{"role": "system", "content": SYSTEM_PROMPT + ("\n\n" + SPOKEN_STYLE if req.spoken else "")}]
     messages += [m.model_dump() for m in turns[-12:]]  # keep the last 12 turns
     try:
         result = client.chat.completions.create(
