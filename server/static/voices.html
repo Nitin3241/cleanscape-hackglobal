@@ -25,7 +25,9 @@
   li.current span::after { content:"  ·  in use now"; color:var(--weak); }
   button { min-width:88px; min-height:48px; padding:0 16px; font:inherit; font-weight:600; color:#fff; background:var(--brand); border:0; border-radius:999px; cursor:pointer; }
   button[disabled] { opacity:.5; cursor:default; }
-  #status { margin-top:16px; padding:12px 16px; border-radius:14px; background:var(--fill); color:var(--ink); }
+  /* What is playing stays in view while the lists scroll. */
+  #now { position:sticky; top:0; z-index:1; margin-top:16px; padding:12px 16px; border-radius:14px; background:var(--fill); color:var(--ink); }
+  #sound { display:block; width:100%; margin-top:8px; }
 </style>
 </head>
 <body>
@@ -34,18 +36,21 @@
   <p>Press Play on each voice. Tell Claude the model and voice name you like best.</p>
   <label for="line">What Earthy says</label>
   <textarea id="line">Kite Beach clean-up is on Saturday, seven to ten in the morning. Bring a litre of water, a hat and closed shoes. Gloves and bags are provided.</textarea>
+  <div id="now">
+    <div id="status" role="status">Loading the voices…</div>
+    <audio id="sound" controls preload="auto"></audio>
+  </div>
   <div id="lists"></div>
-  <div id="status" role="status">Loading the voices…</div>
 </main>
 <script>
 const status = document.getElementById('status');
 const lists = document.getElementById('lists');
-let player = null;
+const sound = document.getElementById('sound');
 
 async function play(model, voice, button) {
   const text = document.getElementById('line').value.trim();
   if (!text) { status.textContent = 'Type a line for Earthy to say first.'; return; }
-  if (player) player.pause();
+  sound.pause();
   button.disabled = true;
   status.textContent = 'Making the sound for ' + (voice || 'the default voice') + '…';
   try {
@@ -56,9 +61,15 @@ async function play(model, voice, button) {
     });
     const data = await response.json();
     if (!response.ok) throw new Error(data.detail || 'The server answered ' + response.status);
-    player = new Audio(data.url);
-    await player.play();
-    status.textContent = 'Playing: ' + model + ' · ' + (voice || 'default voice');
+    sound.src = data.url;
+    const name = model + ' · ' + (voice || 'default voice');
+    try {
+      await sound.play();
+      status.textContent = 'Playing: ' + name;
+    } catch (blocked) {
+      // Some browsers won't start sound by themselves. The player below is ready to press.
+      status.textContent = 'Ready: ' + name + '. Press the play button below.';
+    }
   } catch (error) {
     status.textContent = 'That voice did not work: ' + error.message;
   } finally {
