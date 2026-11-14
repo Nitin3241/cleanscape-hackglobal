@@ -156,6 +156,8 @@ def transcribe(audio: UploadFile = File(...)):
                 model=STT_MODEL, file=(f"question{suffix}", data, audio.content_type or "audio/m4a")
             )
             text = (getattr(heard, "text", "") or "").strip()
+            # One line per voice question in `docker logs earthy`, to see what was heard (sizes only, no audio kept).
+            print(f"Heard {len(data)} bytes ({suffix}) with {STT_MODEL}: {text!r}", flush=True)
             return {"text": text, "language": "ar" if ARABIC.search(text) else "en", "engine": STT_MODEL}
         except Exception as e:
             print(f"Hosted speech to text failed, using the local model: {e}", flush=True)
@@ -176,6 +178,7 @@ def transcribe(audio: UploadFile = File(...)):
             raise
         except Exception as e:
             raise HTTPException(502, f"Could not read the recording: {e}")
+    print(f"Heard {len(data)} bytes ({suffix}) with local Whisper: {text!r}", flush=True)
     return {"text": text, "language": language, "engine": f"local-whisper-{WHISPER_MODEL}"}
 
 
