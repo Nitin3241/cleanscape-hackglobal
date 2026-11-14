@@ -3,16 +3,20 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light only">
 <title>Pick Earthy's voice</title>
 <style>
   :root { --ink:#12252E; --weak:#5B6B73; --brand:#1E6280; --fill:#E6F3F8; --line:#E3E8EB; }
   * { box-sizing: border-box; }
+  :root { color-scheme: light only; }
+  html { background:#fff; }
   body { margin:0; font:16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; color:var(--ink); background:#fff; }
   main { max-width:640px; margin:0 auto; padding:24px 16px 64px; }
   h1 { font-size:24px; margin:0 0 4px; }
   p { margin:0 0 16px; color:var(--weak); }
   label { display:block; font-weight:600; margin-bottom:8px; }
-  textarea { width:100%; min-height:88px; padding:12px; font:inherit; color:inherit; border:1px solid #798C94; border-radius:14px; }
+  textarea { background:#fff;
+    width:100%; min-height:88px; padding:12px; font:inherit; color:inherit; border:1px solid #798C94; border-radius:14px; }
   h2 { font-size:13px; letter-spacing:.06em; text-transform:uppercase; color:var(--weak); margin:24px 0 8px; }
   ul { list-style:none; margin:0; padding:0; border:1px solid var(--line); border-radius:20px; overflow:hidden; }
   li { display:flex; align-items:center; gap:12px; padding:10px 12px 10px 16px; border-top:1px solid var(--line); }
