@@ -214,10 +214,15 @@ def pick_voice() -> str:
             _find_voices(_voices_raw(TTS_MODEL), found)
         except Exception as e:
             print(f"Could not list voices: {e}", flush=True)
-        _voice = ([voice for voice, _ in found] or [""])[0]
+        _voice = ([voice for voice, _ in found if voice.lower() not in NOT_SPEAKERS] or [""])[0]
     return _voice
 
 
+NOT_SPEAKERS = {
+    "clone", "design", "arabic", "danish", "german", "greek", "english", "spanish", "finnish", "french", "hebrew",
+    "hindi", "italian", "japanese", "korean", "malay", "dutch", "norwegian", "polish", "portuguese", "russian",
+    "swedish", "swahili", "turkish", "chinese",
+}
 TTS_MODELS = ("chatterbox", "qwen3-tts-12hz-1.7b")  # the paid speech models on Vultr Serverless Inference
 
 
@@ -241,8 +246,6 @@ def voice_list():
         raise HTTPException(500, "LLM_API_KEY is not set.")
     pairs, notes = [], []
     for model in TTS_MODELS:
-        # Every model can be tried with its own default voice, even if its list can't be read.
-        pairs.append({"model": model, "voice": ""})
         found: list = []
         try:
             _find_voices(_voices_raw(model), found)
@@ -250,9 +253,16 @@ def voice_list():
             notes.append(f"{model}: {e}")
         seen = set()
         for voice, _ in found:
+            # Vultr's list mixes speakers with language names and with "clone" and "design", which need a
+            # recording or a description to work. Only real, ready-made speakers are offered.
+            if voice.lower() in NOT_SPEAKERS:
+                continue
             if voice not in seen:
                 seen.add(voice)
                 pairs.append({"model": model, "voice": voice})
+        if not seen:
+            # The list couldn't be read: the model can still be tried with its own default voice.
+            pairs.append({"model": model, "voice": ""})
     return {"in_use": {"model": TTS_MODEL, "voice": pick_voice()}, "voices": pairs, "notes": notes}
 
 
