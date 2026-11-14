@@ -11,6 +11,7 @@ Open http://localhost:8000
 """
 import base64
 import io
+import json
 import os
 import re
 import tempfile
@@ -254,10 +255,34 @@ _vision_model: str | None = None
 MAX_PHOTO_BYTES = 12 * 1024 * 1024
 LOOK_STYLE = (
     "The person is showing you a photo of one item and wants to know what it is and where it goes. "
-    "Name the item, then say which bin or drop-off it goes to in Dubai, using the sorting rules above, and one "
-    "short tip if it helps (for example: empty it first). If you cannot tell what the item is, say so and ask "
-    "for a closer photo. Do not guess."
+    "Use the sorting rules above. If you cannot tell what the item is, say so and ask for a closer photo. "
+    "Do not guess.\n"
+    "Reply with JSON only, no other text, in exactly this shape:\n"
+    '{"item": "the item in two or three words, or an empty string if you cannot tell", '
+    '"bin": "green" or "black" or "drop-off" or "unknown", '
+    '"tip": "one short tip, such as: Empty it and put the cap back on. Empty string if none", '
+    '"say": "one or two short sentences to read aloud: what it is and where it goes"}'
 )
+BINS = ("green", "black", "drop-off", "unknown")
+
+
+def _read_look(raw: str) -> dict:
+    """Reads the model's JSON answer about a photo. If it isn't JSON, the whole text is used as the spoken line."""
+    found = re.search(r"\{.*\}", raw, re.S)
+    try:
+        data = json.loads(found.group(0)) if found else {}
+    except Exception:
+        data = {}
+    say = str(data.get("say") or "").strip() if isinstance(data, dict) else ""
+    if not say:
+        return {"reply": raw.strip(), "item": "", "bin": "unknown", "tip": ""}
+    bin_ = str(data.get("bin") or "unknown").strip().lower()
+    return {
+        "reply": say,
+        "item": str(data.get("item") or "").strip()[:60],
+        "bin": bin_ if bin_ in BINS else "unknown",
+        "tip": str(data.get("tip") or "").strip()[:160],
+    }
 
 
 def _small_jpeg(data: bytes) -> bytes:
@@ -305,15 +330,16 @@ def look(photo: UploadFile = File(...), question: str = Form("What is this, and 
     if len(data) > MAX_PHOTO_BYTES:
         raise HTTPException(413, "The photo is too large.")
     jpeg = _small_jpeg(data)
-    system = SYSTEM_PROMPT + "\n\n" + LOOK_STYLE + "\n\n" + SPOKEN_STYLE
+    system = SYSTEM_PROMPT + "\n\n" + SPOKEN_STYLE + "\n\n" + LOOK_STYLE
     errors = []
     for model in ([_vision_model] if _vision_model else []) + [m for m in VISION_MODELS if m != _vision_model]:
         try:
             reply = _see(model, jpeg, question[:300], system)
             if reply:
                 _vision_model = model
-                print(f"Looked at a {len(jpeg)} byte photo with {model}: {reply!r}", flush=True)
-                return {"reply": reply, "model": model}
+                seen = _read_look(reply)
+                print(f"Looked at a {len(jpeg)} byte photo with {model}: {seen}", flush=True)
+                return {**seen, "model": model}
             errors.append(f"{model}: empty answer")
         except Exception as e:
             errors.append(f"{model}: {str(e)[:160]}")
@@ -439,6 +465,7 @@ def speak(req: SpeakRequest):
     body = {"model": model, "input": req.text.strip(), "response_format": "mp3"}
     if voice:
         body["voice"] = voice
+    began = time.time()
     try:
         response = httpx.post(f"{LLM_BASE_URL}/audio/speech", headers=_auth(), json=body, timeout=60)
     except Exception as e:
@@ -446,6 +473,7 @@ def speak(req: SpeakRequest):
     kind = response.headers.get("content-type", "")
     if response.status_code != 200 or not response.content or kind.startswith("application/json"):
         raise HTTPException(502, f"Speech request failed ({response.status_code}): {response.text[:300]}")
+    print(f"Voiced {len(text)} characters with {model}/{voice} in {time.time() - began:.1f} s", flush=True)
     clip = uuid.uuid4().hex
     keep = not (req.model or req.voice) and text in _answers.values()  # a built-in question's answer
     with _audio_lock:
