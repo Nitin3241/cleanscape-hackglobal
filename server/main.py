@@ -10,13 +10,18 @@ Run locally:
 Open http://localhost:8000
 """
 import os
+import re
 import tempfile
 import threading
+import uuid
+from collections import OrderedDict
+
+import httpx
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from openai import OpenAI
 from pydantic import BaseModel, Field
 
@@ -63,7 +68,18 @@ Demo data for the signed-in user (sample data, not a real person)
 
 SYSTEM_PROMPT = os.getenv("SYSTEM_PROMPT", EARTHY_CONTEXT)
 
-# Speech to text runs on this server (Vultr Cloud Compute) with the open-source Whisper model.
+# Voice, both ways, on Vultr Serverless Inference (the audio routes follow the OpenAI shapes):
+# speech to text with Whisper Large V3 Turbo, and text to speech for Earthy's own voice.
+STT_MODEL = os.getenv("STT_MODEL", "whisper-large-v3-turbo")
+TTS_MODEL = os.getenv("TTS_MODEL", "chatterbox")
+TTS_VOICE = os.getenv("TTS_VOICE", "")  # empty: pick the first voice Vultr lists for the model
+ARABIC = re.compile("[\u0600-\u06FF]")
+_audio: "OrderedDict[str, tuple[bytes, str]]" = OrderedDict()  # spoken answers waiting to be played
+_audio_lock = threading.Lock()
+_voice: str | None = None
+
+# Fallback speech to text on this server itself (Vultr Cloud Compute) with a small open-source Whisper,
+# used only if the hosted model can't be reached.
 # "base" fits a 1 GB server. On a bigger server set WHISPER_MODEL=small for better Arabic.
 WHISPER_MODEL = os.getenv("WHISPER_MODEL", "base")
 VOICE_LANGUAGES = ("en", "ar")  # the app's two languages
@@ -113,7 +129,8 @@ def health():
         "status": "ok",
         "model": LLM_MODEL,
         "configured": bool(LLM_API_KEY and LLM_MODEL),
-        "speech_model": WHISPER_MODEL,
+        "hearing_model": STT_MODEL,
+        "voice_model": TTS_MODEL,
     }
 
 
@@ -126,6 +143,17 @@ def transcribe(audio: UploadFile = File(...)):
     if len(data) > MAX_AUDIO_BYTES:
         raise HTTPException(413, "The recording is too long.")
     suffix = os.path.splitext(audio.filename or "")[1] or ".m4a"
+    # First choice: the hosted Whisper model on Vultr Serverless Inference.
+    if LLM_API_KEY:
+        try:
+            client = OpenAI(base_url=LLM_BASE_URL, api_key=LLM_API_KEY, timeout=40)
+            heard = client.audio.transcriptions.create(
+                model=STT_MODEL, file=(f"question{suffix}", data, audio.content_type or "audio/m4a")
+            )
+            text = (getattr(heard, "text", "") or "").strip()
+            return {"text": text, "language": "ar" if ARABIC.search(text) else "en", "engine": STT_MODEL}
+        except Exception as e:
+            print(f"Hosted speech to text failed, using the local model: {e}", flush=True)
     with tempfile.NamedTemporaryFile(suffix=suffix) as clip:
         clip.write(data)
         clip.flush()
@@ -143,7 +171,98 @@ def transcribe(audio: UploadFile = File(...)):
             raise
         except Exception as e:
             raise HTTPException(502, f"Could not read the recording: {e}")
-    return {"text": text, "language": language}
+    return {"text": text, "language": language, "engine": f"local-whisper-{WHISPER_MODEL}"}
+
+
+def _auth() -> dict:
+    return {"Authorization": f"Bearer {LLM_API_KEY}"}
+
+
+def _voices_raw():
+    response = httpx.get(f"{LLM_BASE_URL}/audio/voices", headers=_auth(), timeout=20)
+    response.raise_for_status()
+    return response.json()
+
+
+def _find_voices(node, found: list) -> None:
+    """Collects voice ids from whatever shape the voices list comes back in."""
+    if isinstance(node, dict):
+        voice = node.get("voice_id") or node.get("id") or node.get("name")
+        if isinstance(voice, str) and not any(isinstance(v, (dict, list)) for v in node.values()):
+            found.append((voice, str(node)))
+        for value in node.values():
+            _find_voices(value, found)
+    elif isinstance(node, list):
+        for item in node:
+            if isinstance(item, str):
+                found.append((item, item))
+            else:
+                _find_voices(item, found)
+
+
+def pick_voice() -> str:
+    """TTS_VOICE if set, otherwise the first voice listed for the speech model. Empty if none is listed."""
+    global _voice
+    if TTS_VOICE:
+        return TTS_VOICE
+    if _voice is None:
+        found: list = []
+        try:
+            _find_voices(_voices_raw(), found)
+        except Exception as e:
+            print(f"Could not list voices: {e}", flush=True)
+        for_model = [voice for voice, detail in found if TTS_MODEL in detail]
+        _voice = (for_model or [voice for voice, _ in found] or [""])[0]
+    return _voice
+
+
+class SpeakRequest(BaseModel):
+    text: str = Field(min_length=1, max_length=1200)
+
+
+@app.get("/api/voices")
+def voices():
+    """For setup: shows the speech model, the voice in use and every voice Vultr offers."""
+    if not LLM_API_KEY:
+        raise HTTPException(500, "LLM_API_KEY is not set.")
+    try:
+        offered = _voices_raw()
+    except Exception as e:
+        offered = f"Could not list voices: {e}"
+    return {"speech_model": TTS_MODEL, "voice_in_use": pick_voice(), "offered": offered}
+
+
+@app.post("/api/speak")
+def speak(req: SpeakRequest):
+    """Turns Earthy's answer into speech on Vultr and returns where to play it: {"url": "/api/audio/<id>"}."""
+    if not LLM_API_KEY:
+        raise HTTPException(500, "LLM_API_KEY is not set.")
+    body = {"model": TTS_MODEL, "input": req.text.strip(), "response_format": "mp3"}
+    voice = pick_voice()
+    if voice:
+        body["voice"] = voice
+    try:
+        response = httpx.post(f"{LLM_BASE_URL}/audio/speech", headers=_auth(), json=body, timeout=60)
+    except Exception as e:
+        raise HTTPException(502, f"Speech request failed: {e}")
+    kind = response.headers.get("content-type", "")
+    if response.status_code != 200 or not response.content or kind.startswith("application/json"):
+        raise HTTPException(502, f"Speech request failed ({response.status_code}): {response.text[:300]}")
+    clip = uuid.uuid4().hex
+    with _audio_lock:
+        _audio[clip] = (response.content, kind if kind.startswith("audio/") else "audio/mpeg")
+        while len(_audio) > 40:  # keep only the most recent answers in memory
+            _audio.popitem(last=False)
+    return {"url": f"/api/audio/{clip}", "voice": voice, "model": TTS_MODEL}
+
+
+@app.get("/api/audio/{clip}")
+def audio_clip(clip: str):
+    with _audio_lock:
+        found = _audio.get(clip)
+    if not found:
+        raise HTTPException(404, "That answer is no longer available.")
+    return Response(content=found[0], media_type=found[1])
 
 
 @app.post("/api/chat")
