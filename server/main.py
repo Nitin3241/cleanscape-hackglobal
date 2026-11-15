@@ -12,6 +12,7 @@ Open http://localhost:8000
 import base64
 import io
 import json
+import mimetypes
 import os
 import re
 import tempfile
@@ -23,7 +24,7 @@ from collections import OrderedDict
 import httpx
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response
 from openai import OpenAI
@@ -154,7 +155,7 @@ SPOKEN_STYLE = (
 
 @app.get("/")
 def home():
-    """The front door: on a phone, two steps to open the app in Expo Go; on a computer, a code to scan."""
+    """The front door: on a phone, a button that opens the app in the browser; on a computer, a code to scan."""
     return FileResponse(os.path.join(os.path.dirname(__file__), "static", "start.html"), headers={"Cache-Control": "no-store"})
 
 
@@ -175,12 +176,19 @@ APP_DIR = os.path.join(os.path.dirname(__file__), "static", "app")
 
 @app.get("/app")
 @app.get("/app/{path:path}")
-def phone_app(path: str = ""):
+def phone_app(request: Request, path: str = ""):
     """The CleanScape app itself, built for the browser. Any path that is not a file opens the app (it routes itself)."""
     target = os.path.normpath(os.path.join(APP_DIR, path))
     if path and target.startswith(APP_DIR + os.sep) and os.path.isfile(target):
-        return FileResponse(target)
-    return FileResponse(os.path.join(APP_DIR, "index.html"))
+        # Everything under _expo and assets has its contents' fingerprint in its name, so a browser can keep it.
+        headers = {"Cache-Control": "public, max-age=31536000, immutable"} if path.startswith(("_expo/", "assets/")) else {}
+        # The build leaves a gzipped copy beside each large text file: a third of the size on a phone connection.
+        if "gzip" in request.headers.get("accept-encoding", "") and os.path.isfile(target + ".gz"):
+            kind = mimetypes.guess_type(target)[0] or "application/octet-stream"
+            return FileResponse(target + ".gz", media_type=kind, headers={**headers, "Content-Encoding": "gzip", "Vary": "Accept-Encoding"})
+        return FileResponse(target, headers=headers)
+    # The page itself is never kept by the browser, so an update to the app shows the next time it is opened.
+    return FileResponse(os.path.join(APP_DIR, "index.html"), headers={"Cache-Control": "no-store"})
 
 
 @app.get("/health")

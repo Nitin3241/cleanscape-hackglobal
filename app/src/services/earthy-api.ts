@@ -1,4 +1,5 @@
 import * as FileSystem from 'expo-file-system/legacy';
+import { Platform } from 'react-native';
 
 /**
  * Earthy's live answers. The server is the FastAPI app in /server, hosted on Vultr; it adds
@@ -7,7 +8,15 @@ import * as FileSystem from 'expo-file-system/legacy';
  * Set EXPO_PUBLIC_EARTHY_API_URL (see .env.example) to the server's address. With no address the app
  * keeps its scripted demo answers, so it still runs with no server at all.
  */
-export const EARTHY_API_URL = (process.env.EXPO_PUBLIC_EARTHY_API_URL ?? '').replace(/\/+$/, '');
+const CONFIGURED = (process.env.EXPO_PUBLIC_EARTHY_API_URL ?? '').replace(/\/+$/, '');
+
+/**
+ * The browser build is served by the Earthy server itself, so it is built with the address "same-origin" and
+ * talks to whichever address the page was opened from. That keeps it working on both the http and the https
+ * address, where a fixed http address would be blocked on the https page.
+ */
+export const EARTHY_API_URL =
+  CONFIGURED === 'same-origin' ? (Platform.OS === 'web' && typeof window !== 'undefined' ? window.location.origin : '') : CONFIGURED;
 
 export const earthyIsLive = EARTHY_API_URL.length > 0;
 
@@ -25,6 +34,7 @@ async function uploadFile(
   parameters?: Record<string, string>,
 ): Promise<unknown> {
   if (!earthyIsLive) throw new Error('Earthy server address is not set');
+  if (Platform.OS === 'web') return uploadFromBrowser(path, uri, field, mimeType, timeoutMs, parameters);
   const fileUri = uri.startsWith('file://') || uri.startsWith('content://') ? uri : `file://${uri}`;
   const upload = FileSystem.uploadAsync(`${EARTHY_API_URL}${path}`, fileUri, {
     httpMethod: 'POST',
@@ -43,6 +53,50 @@ async function uploadFile(
     return JSON.parse(result.body) as unknown;
   } finally {
     if (timer) clearTimeout(timer);
+  }
+}
+
+/** File endings the server knows, by the kind of file a browser hands over. */
+const FILE_ENDINGS: Record<string, string> = {
+  'audio/wav': 'wav',
+  'audio/x-wav': 'wav',
+  'audio/webm': 'webm',
+  'audio/mp4': 'm4a',
+  'audio/m4a': 'm4a',
+  'audio/x-m4a': 'm4a',
+  'audio/ogg': 'ogg',
+  'audio/mpeg': 'mp3',
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+  'image/webp': 'webp',
+};
+
+/**
+ * The same upload in a browser, where a recording or a photo is a blob: or data: address and not a file on
+ * the phone. The file is read back from that address and sent as an ordinary web form.
+ */
+async function uploadFromBrowser(
+  path: string,
+  uri: string,
+  field: string,
+  mimeType: string,
+  timeoutMs: number,
+  parameters?: Record<string, string>,
+): Promise<unknown> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const file = await (await fetch(uri, { signal: controller.signal })).blob();
+    // "audio/webm;codecs=opus" → "audio/webm". If the browser didn't say what the file is, use what the caller expects.
+    const kind = (file.type || mimeType).split(';')[0].trim().toLowerCase();
+    const form = new FormData();
+    form.append(field, file, `${field}.${FILE_ENDINGS[kind] ?? kind.split('/')[1] ?? 'bin'}`);
+    for (const [name, value] of Object.entries(parameters ?? {})) form.append(name, value);
+    const response = await fetch(`${EARTHY_API_URL}${path}`, { method: 'POST', body: form, signal: controller.signal });
+    if (!response.ok) throw new Error(`Earthy server answered ${response.status}: ${(await response.text()).slice(0, 200)}`);
+    return (await response.json()) as unknown;
+  } finally {
+    clearTimeout(timer);
   }
 }
 

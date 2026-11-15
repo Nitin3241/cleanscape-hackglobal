@@ -4,8 +4,9 @@ An app that makes it easy for UAE residents to join community clean-ups, with **
 
 Built for **HackGlobal 2026** (Polaris School of Technology, powered by Vultr). Track: **Civic and real-world impact**.
 
-- Live demo: http://139.84.154.80. On a phone it gives two steps (install Expo Go, open the app). On a computer it shows a code to scan, plus a browser preview of the screens.
-- The full app, with voice and camera, runs on a phone in Expo Go.
+- Live demo: https://139-84-154-80.sslip.io (the same server as http://139.84.154.80). On a phone it opens the app in the browser, with nothing to install. On a computer it shows a code to scan, plus a preview of the screens.
+- Earthy's voice and the camera scan need a phone, and the https address.
+- This branch (`browser-demo`) was made after the submission deadline. See "After the deadline" below. `main` is the code as submitted.
 - Architecture: [docs/architecture.png](docs/architecture.png)
 
 ![Architecture](docs/architecture.png)
@@ -60,12 +61,20 @@ Honest scope, so nobody is misled:
 - **Before:** the product idea, user research, the Figma designs, the design system and an earlier app prototype built from those designs. The organisers confirmed by call that this is fine as long as the submission is a fresh repository.
 - **During HackGlobal (14 to 15 Nov 2026):** this repository, a rebuild of the app screens against the updated designs, the Earthy server, the Vultr deployment, and the live Earthy screens in the app: chat, voice and photo scan.
 
+## After the deadline: the browser version (branch `browser-demo`)
+
+Said plainly, so nobody is misled: the work on this branch was done on 15 Nov after the 12:00 IST deadline. `main` holds the submission as it was at the deadline.
+
+- **Why:** the app was submitted as an Expo Go project. Expo Go on iPhone only opens a project for the Expo account that owns it, so nobody else's iPhone could run the demo. Android was not affected.
+- **What changed:** the same app is also built for the browser and served by the Earthy server under `/app`. No screen was redesigned and no feature was added. The changes are the parts a browser does differently: recording and playing sound (`app/src/services/earthy-audio.web.ts`), sending a recording or a photo (`app/src/services/earthy-api.ts`), asking for the camera once (`app/src/app/earthy-show.tsx`), the front page, and the build script (`deploy/build-browser-app.sh`).
+- **Tested:** in Chrome's engine, end to end, against a stand-in for Vultr Serverless Inference. Not tested by us on every phone browser.
+
 ## Repository layout
 
 ```
 app/      Expo (React Native) phone app
 server/   Earthy API + Ask Earthy web page (FastAPI, Docker)
-deploy/   Step-by-step Vultr deploy guide
+deploy/   Step-by-step Vultr deploy guide, and the script that builds the app for the browser
 docs/     Architecture diagram, submission checklist
 ```
 

@@ -3,7 +3,11 @@
   <head>
     <meta charset="utf-8" />
     <meta httpEquiv="X-UA-Compatible" content="IE=edge" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, shrink-to-fit=no" />
+    <meta name="theme-color" content="#ffffff" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="CleanScape" />
     <title>CleanScape</title>
     <!-- The `react-native-web` recommended style reset: https://necolas.github.io/react-native-web/docs/setup/#root-element -->
     <style id="expo-reset">
@@ -24,12 +28,35 @@
       }
     </style>
   <style>
-      /* In a wide browser the app sits in a phone-sized column, centred. */
+      html { color-scheme: light only; -webkit-text-size-adjust: 100%; }
+      /* Feels like an app: no pull-to-refresh, no grey flash on tap. */
+      body { overscroll-behavior: none; -webkit-tap-highlight-color: transparent; background: #fff; }
+      /* Shown until the app has loaded. */
+      #boot { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px;
+        background: #fff; color: #50636B; font: 500 15px/22px system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; z-index: 10; }
+      #boot i { width: 28px; height: 28px; border-radius: 50%; border: 3px solid #E6F3F8; border-top-color: #1E6280; animation: boot-spin 0.9s linear infinite; }
+      @keyframes boot-spin { to { transform: rotate(360deg); } }
+      @media (prefers-reduced-motion: reduce) { #boot i { animation: none; } }
+      /* On a wide screen the app sits in a phone-sized column, centred. */
       @media (min-width: 520px) {
         body { background: #E6F3F8; }
-        #root { max-width: 430px; max-height: 932px; margin: auto; position: relative; top: 50%; transform: translateY(-50%); overflow: hidden; border-radius: 40px; box-shadow: 0 12px 48px rgba(18,37,46,.18); background: #fff; }
+        #root, #boot { max-width: 430px; max-height: 932px; margin: auto; border-radius: 40px; }
+        #root { position: relative; top: 50%; transform: translateY(-50%); overflow: hidden; box-shadow: 0 12px 48px rgba(18,37,46,.18); background: #fff; }
+        #boot { inset: 0; height: 100%; }
       }
     </style>
+    <script>
+      // The microphone and camera only work on the https address. If this page was opened on the plain one
+      // and the https address answers, move there. (a.b.c.d becomes a-b-c-d.sslip.io, which has a certificate.)
+      (function () {
+        var host = location.hostname;
+        if (location.protocol !== 'http:' || !/^\d+\.\d+\.\d+\.\d+$/.test(host) || host === '127.0.0.1') return;
+        var secure = 'https://' + host.replace(/\./g, '-') + '.sslip.io';
+        fetch(secure + '/health', { cache: 'no-store' })
+          .then(function (answer) { if (answer.ok) location.replace(secure + location.pathname + location.search + location.hash); })
+          .catch(function () {});
+      })();
+    </script>
   <link rel="icon" href="/app/favicon.ico"/></head>
 
   <body>
@@ -37,6 +64,16 @@
     <noscript> You need to enable JavaScript to run this app. </noscript>
     <!-- The root element for your Expo app. -->
     <div id="root"></div>
-  <script src="/app/_expo/static/js/web/__expo-metro-runtime-ed4c1cfa6193d76fc294130e42bd1916.js" defer></script><script src="/app/_expo/static/js/web/__common-7d123c5cfdea8a2f4aa84272b71870ea.js" defer></script><script src="/app/_expo/static/js/web/entry-b582af6c21a1fac59d5c9e0c58eff1e8.js" defer></script>
+  <div id="boot" role="status"><i></i>Opening CleanScape</div>
+    <script>
+      // Take the loading line away once the app has drawn itself.
+      (function () {
+        var root = document.getElementById('root'), boot = document.getElementById('boot');
+        var done = function () { if (boot && boot.parentNode) boot.parentNode.removeChild(boot); };
+        new MutationObserver(function (_, watcher) { if (root.firstChild) { watcher.disconnect(); done(); } }).observe(root, { childList: true });
+        setTimeout(done, 20000);
+      })();
+    </script>
+  <script src="/app/_expo/static/js/web/__expo-metro-runtime-ed4c1cfa6193d76fc294130e42bd1916.js" defer></script><script src="/app/_expo/static/js/web/__common-6181083ab6ed04c95df40563fc80c5fb.js" defer></script><script src="/app/_expo/static/js/web/entry-2f75f5c4299aaede4eb9eecc7ff2e3db.js" defer></script>
 </body>
 </html>

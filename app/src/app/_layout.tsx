@@ -16,6 +16,9 @@ import { SpotOpenedBanner } from '@/components/events/spot-opened-banner';
 import { ComingSoonHost } from '@/components/ui/coming-soon-host';
 import { Motion } from '@/constants/theme';
 import { feedback } from '@/feedback';
+// Loaded at start-up for the browser build: it gets Earthy's voice ready on the visitor's first tap, which a
+// browser insists on before a page may play sound by itself. On a phone this line does nothing.
+import '@/services/earthy-audio';
 import { LanguageProvider } from '@/state/language';
 import { RegistrationProvider } from '@/state/registration';
 import { RoleProvider } from '@/state/role';

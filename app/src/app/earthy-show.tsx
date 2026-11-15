@@ -1,5 +1,4 @@
 import { Asset } from 'expo-asset';
-import { setAudioModeAsync, useAudioPlayer } from 'expo-audio';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -7,7 +6,7 @@ import { router } from 'expo-router';
 import * as Speech from 'expo-speech';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useRef, useState } from 'react';
-import { Linking, StyleSheet, View } from 'react-native';
+import { Linking, Platform, StyleSheet, View } from 'react-native';
 import Animated, {
   Easing,
   FadeIn,
@@ -34,6 +33,7 @@ import { Motion, Radius, Spacing } from '@/constants/theme';
 import { feedback } from '@/feedback';
 import { useTheme } from '@/hooks/use-theme';
 import { earthyVoiceUrl, scanItem, type SeenItem } from '@/services/earthy-api';
+import { setAudioModeAsync, useAudioPlayer } from '@/services/earthy-audio';
 
 type Step = 'aim' | 'looking' | 'result' | 'failed';
 
@@ -87,8 +87,23 @@ export default function EarthyShowRoute() {
   // Cancels an answer or a voice that arrives after "Scan another" or after leaving.
   const turn = useRef(0);
 
+  // Ask for the camera once when the screen opens. Asking again is the "Allow camera" button's job: a browser
+  // that has been told no answers at once every time, and asking in a loop would never stop.
+  const asked = useRef(false);
   useEffect(() => {
-    if (permission && !permission.granted && permission.canAskAgain) requestPermission();
+    if (asked.current) return;
+    if (permission && !permission.granted && permission.canAskAgain) {
+      asked.current = true;
+      requestPermission();
+    }
+    if (permission) return;
+    // Some browsers can't say whether the camera is allowed until it is asked for. Ask, so the screen isn't left empty.
+    const timer = setTimeout(() => {
+      if (asked.current) return;
+      asked.current = true;
+      requestPermission();
+    }, 1500);
+    return () => clearTimeout(timer);
   }, [permission, requestPermission]);
 
   // While Earthy looks: the rows tick over and a band of light sweeps the frame, so the wait reads as work.
@@ -171,7 +186,8 @@ export default function EarthyShowRoute() {
   const capture = () =>
     look(async () => {
       if (!camera.current) throw new Error('The camera is not ready');
-      return (await camera.current.takePictureAsync({ quality: 0.4 })).uri;
+      // JPEG everywhere: a browser would otherwise hand over a PNG several times the size.
+      return (await camera.current.takePictureAsync({ quality: 0.4, imageType: 'jpg' })).uri;
     });
 
   const trySample = (photo: number) =>
@@ -209,7 +225,7 @@ export default function EarthyShowRoute() {
 
       <View style={[styles.top, { paddingTop: insets.top + Spacing.two }]}>
         <GlassButton icon="close" label="Close" surface="art" onPress={close} />
-        {step === 'aim' && allowed && (
+        {step === 'aim' && allowed && Platform.OS !== 'web' && (
           <GlassButton icon="flash" label={torch ? 'Turn the light off' : 'Turn the light on'} surface={torch ? 'light' : 'art'} onPress={() => setTorch((on) => !on)} />
         )}
       </View>
@@ -261,7 +277,7 @@ export default function EarthyShowRoute() {
         </>
       )}
 
-      {permission && !allowed && (
+      {permission && !allowed && step === 'aim' && (
         <View style={styles.centre}>
           <View style={[styles.card, { backgroundColor: theme.card }]}>
             <ThemedText type="sheetTitle" accessibilityRole="header">
@@ -276,6 +292,17 @@ export default function EarthyShowRoute() {
               flat
               onPress={() => (permission.canAskAgain ? requestPermission() : Linking.openSettings())}
             />
+            {/* Without the camera the scan can still be tried: Earthy looks at one of the sample photos. */}
+            <ThemedText type="caption" themeColor="textWeak" style={styles.orSample}>
+              Or let Earthy look at a sample photo
+            </ThemedText>
+            <View style={styles.actions}>
+              {SAMPLES.map((sample) => (
+                <View key={sample.name} style={styles.flex}>
+                  <Button label={sample.name} variant="secondary" pill flat onPress={() => trySample(sample.photo)} />
+                </View>
+              ))}
+            </View>
           </View>
         </View>
       )}
@@ -529,6 +556,9 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     paddingHorizontal: Spacing.three,
+  },
+  orSample: {
+    textAlign: 'center',
   },
   card: {
     gap: Spacing.three,

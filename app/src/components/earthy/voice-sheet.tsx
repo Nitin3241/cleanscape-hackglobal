@@ -6,7 +6,7 @@ import {
   useAudioPlayer,
   useAudioPlayerStatus,
   useAudioRecorder,
-} from 'expo-audio';
+} from '@/services/earthy-audio';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';

@@ -54,6 +54,26 @@ docker rm -f earthy && docker build -t earthy .
 docker run -d --name earthy --restart unless-stopped --env-file .env -p 80:8000 earthy
 ```
 
+## The browser version of the app
+
+The server also serves the app itself, built for the browser, under `/app`. The built files are in the repo
+(`server/static/app`), so the server needs nothing extra. To rebuild them after changing the app:
+
+```bash
+deploy/build-browser-app.sh      # then commit server/static/app and update the server as above
+```
+
+A phone browser only allows the microphone and camera on an https address. This gives the server one, with a
+certificate, without touching the app's own http address (`a.b.c.d` becomes `a-b-c-d.sslip.io`):
+
+```bash
+ufw allow 443
+mkdir -p /root/caddy
+printf '{\n  auto_https disable_redirects\n  http_port 8088\n}\nYOUR-SERVER-IP-WITH-DASHES.sslip.io {\n  reverse_proxy localhost:80\n}\n' > /root/caddy/Caddyfile
+docker run -d --name caddy --restart unless-stopped --network host \
+  -v /root/caddy/Caddyfile:/etc/caddy/Caddyfile -v caddy_data:/data caddy:2
+```
+
 ## Not working?
 
 | Problem | Try |
