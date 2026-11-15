@@ -21,6 +21,8 @@ import { VoiceMic } from '@/components/ask-earthy/voice-mic';
 import { EarthyOrb, type OrbState } from '@/components/earthy/earthy-orb';
 import { LanguageToggle, type VoiceLanguage } from '@/components/earthy/language-toggle';
 import { dur, ease, pop } from '@/components/earthy/motion';
+import * as FileSystem from 'expo-file-system/legacy';
+
 import { StreamingText } from '@/components/earthy/streaming-text';
 import { ThinkingSteps, type ThinkingStep } from '@/components/earthy/thinking-steps';
 import { ThemedText } from '@/components/themed-text';
@@ -50,6 +52,9 @@ const NOTICE_TIME = 2400;
 const LIVE_STEPS = ['Hearing your question', 'Finding the answer'];
 const PHOTO_STEPS = ['Looking at your photo'];
 const LIVE_WORD_TIME = 280;
+// LIVE highlight: Earthy's voice speaks about this many words a second; the highlight leads it by this many seconds.
+const VOICE_WORDS_PER_SECOND = 3.2;
+const HIGHLIGHT_LEAD = 0.2;
 const LIVE_MAX_RECORDING = 15000;
 // LIVE: Earthy answers by itself once you stop talking. The mic level is checked a few times a second;
 // after speech has been heard, this much quiet ends the question. Levels are in dB (0 is the loudest).
@@ -135,17 +140,33 @@ export function VoiceSheet({ onClose, onBook, startFullScreen = false, onLeave, 
   const [liveAnswer, setLiveAnswer] = useState('');
 
   // Earthy's own voice (text to speech on Vultr) plays here. `afterVoice` runs once it has finished.
-  const player = useAudioPlayer();
+  const player = useAudioPlayer(null, { updateInterval: 100 });
   const playerStatus = useAudioPlayerStatus(player);
   const afterVoice = useRef<(() => void) | null>(null);
   // Backup for the end of the voice, in case the player doesn't report that it finished.
   const voiceEnd = useRef<ReturnType<typeof setTimeout> | null>(null);
   // How long each word of the answer takes to light up, so the words keep pace with the voice.
   const [wordTime, setWordTime] = useState(LIVE_WORD_TIME);
+  // LIVE: how many words Earthy's voice has spoken, read from the player, so the highlight follows the voice.
+  // `pace` holds the word counts of the clip(s); `undefined` means there is no clip and the clock is used.
+  const [spoken, setSpoken] = useState<number | undefined>(undefined);
+  const pace = useRef<{ first: number; total: number; rest: boolean } | null>(null);
+  // For noticing the end of a clip from the player itself: it was playing, and now it has stopped.
+  const wasPlaying = useRef(false);
+  const stoppedFor = useRef(0);
+  const stopCheck = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // A second player for the rest of a long answer: it loads while the first sentence is being spoken, so
+  // the voice carries straight on instead of pausing to fetch.
+  const restPlayer = useAudioPlayer(null, { updateInterval: 100 });
+  const restStatus = useAudioPlayerStatus(restPlayer);
 
   function voiceFinished() {
     if (voiceEnd.current) clearTimeout(voiceEnd.current);
     voiceEnd.current = null;
+    if (stopCheck.current) clearTimeout(stopCheck.current);
+    stopCheck.current = null;
+    wasPlaying.current = false;
     const next = afterVoice.current;
     afterVoice.current = null;
     next?.();
@@ -153,11 +174,23 @@ export function VoiceSheet({ onClose, onBook, startFullScreen = false, onLeave, 
 
   /** Loads a sound into the player and waits until its length is known. Returns the length in seconds (0 if unknown). */
   async function loadVoice(url: string) {
-    player.replace({ uri: url });
+    // Save the clip on the phone first, then play that copy. A saved clip has a known length and never stops
+    // to wait for the network, which is what keeps the highlight and the voice together.
+    let source = url;
+    try {
+      const saved = await FileSystem.downloadAsync(url, `${FileSystem.cacheDirectory}earthy-voice-${Date.now()}.mp3`);
+      if (saved.status === 200) source = saved.uri;
+    } catch {
+      // Play it straight from the server instead.
+    }
+    player.replace({ uri: source });
+    await new Promise((resolve) => setTimeout(resolve, 120));
     const started = Date.now();
     while (Date.now() - started < 4000) {
       if (player.isLoaded && player.duration > 0) return player.duration;
-      await new Promise((resolve) => setTimeout(resolve, 80));
+      // Loaded but no length after a second: carry on without it.
+      if (player.isLoaded && Date.now() - started > 1000) return 0;
+      await new Promise((resolve) => setTimeout(resolve, 60));
     }
     return 0;
   }
@@ -166,9 +199,13 @@ export function VoiceSheet({ onClose, onBook, startFullScreen = false, onLeave, 
     afterVoice.current = null;
     if (voiceEnd.current) clearTimeout(voiceEnd.current);
     voiceEnd.current = null;
+    if (stopCheck.current) clearTimeout(stopCheck.current);
+    stopCheck.current = null;
+    wasPlaying.current = false;
     Speech.stop();
     try {
       player.pause();
+      restPlayer.pause();
     } catch {
       // The player may already be gone when the sheet closes.
     }
@@ -192,8 +229,12 @@ export function VoiceSheet({ onClose, onBook, startFullScreen = false, onLeave, 
         if (id !== turn.current) return;
       }
       afterVoice.current = then ?? null;
+      wasPlaying.current = false;
+      stoppedFor.current = 0;
       player.play();
-      if (seconds > 0) voiceEnd.current = setTimeout(voiceFinished, seconds * 1000 + 700);
+      // Last resort if the player never reports the end: the clip's length, or a generous guess from its words.
+      const spokenWords = pace.current?.first ?? text.split(' ').length;
+      voiceEnd.current = setTimeout(voiceFinished, seconds > 0 ? seconds * 1000 + 300 : (spokenWords / 1.5) * 1000 + 2500);
     } catch {
       if (id !== turn.current) return;
       const arabic = Platform.OS === 'ios' ? 'ar-001' : 'ar';
@@ -206,6 +247,44 @@ export function VoiceSheet({ onClose, onBook, startFullScreen = false, onLeave, 
     // Runs when the player reports the end of the sound.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [playerStatus.didJustFinish]);
+
+  // While Earthy speaks, the players report where the voice is ten times a second. The highlight goes there.
+  useEffect(() => {
+    if (phase !== 'speaking') return;
+    const clip = pace.current;
+    if (!clip) return;
+    const status = clip.rest ? restStatus : playerStatus;
+    const words = clip.rest ? clip.total - clip.first : clip.first;
+    const at = status.currentTime || 0;
+    // Words per second: from the clip's real length when the player knows it, otherwise Earthy's usual pace.
+    const rate = status.duration > 0 ? words / status.duration : VOICE_WORDS_PER_SECOND;
+    // The highlight runs a touch ahead of the voice while it is speaking, and stops when the voice stops.
+    const done = Math.min(words, (at + (status.playing ? HIGHLIGHT_LEAD : 0)) * rate);
+    setSpoken((clip.rest ? clip.first : 0) + (at > 0 ? done : 0));
+    // The end of the clip, seen from the player: it was playing and has now stopped.
+    // A short stop in the middle is only the clip still arriving, so the end counts when the voice is at the
+    // end of the clip, or has stayed stopped for most of a second.
+    if (status.playing) {
+      wasPlaying.current = true;
+      if (stopCheck.current) clearTimeout(stopCheck.current);
+      stopCheck.current = null;
+    } else if (wasPlaying.current && at > 0.2 && !stopCheck.current) {
+      const finish = () => {
+        stopCheck.current = null;
+        wasPlaying.current = false;
+        if (afterVoice.current) voiceFinished();
+      };
+      if (status.duration > 0 && at >= status.duration - 0.3) finish();
+      else stopCheck.current = setTimeout(finish, 800);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase, playerStatus.currentTime, playerStatus.playing, restStatus.currentTime, restStatus.playing]);
+
+  useEffect(() => {
+    if (restStatus.didJustFinish) voiceFinished();
+    // Runs when the second player reports the end of the rest of the answer.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [restStatus.didJustFinish]);
 
   async function startListening(afterAnswer = false) {
     const id = ++turn.current;
@@ -287,6 +366,8 @@ export function VoiceSheet({ onClose, onBook, startFullScreen = false, onLeave, 
   async function answer(text: string, language: 'en' | 'ar', id: number, photoUri?: string) {
     setLiveQuestion(text);
     setStepsDone(1);
+    pace.current = null;
+    setSpoken(undefined);
     const question: EarthyMessage = { role: 'user', content: photoUri ? `(Showed a photo) ${text}` : text };
     // A photo goes to the model that can see. Otherwise `true` says the answer will be read aloud, so the
     // server keeps it to a sentence or two (quicker to voice).
@@ -304,14 +385,8 @@ export function VoiceSheet({ onClose, onBook, startFullScreen = false, onLeave, 
     let spokenFirst = reply;
     let rest: Promise<string | null> | null = null;
     try {
-      try {
-        voice = await earthyVoiceUrl(reply, true);
-      } catch {
-        const [first, tail] = firstSentence(reply);
-        spokenFirst = first;
-        rest = tail ? earthyVoiceUrl(tail).catch(() => null) : null;
-        voice = await earthyVoiceUrl(first);
-      }
+      // The whole answer is voiced as one clip: one length to follow, and nothing to join.
+      voice = await earthyVoiceUrl(reply);
       if (id !== turn.current) return;
       // Load the sound now and read its length, so each word lights up as it is spoken.
       seconds = await loadVoice(voice);
@@ -321,6 +396,10 @@ export function VoiceSheet({ onClose, onBook, startFullScreen = false, onLeave, 
     }
     if (id !== turn.current) return;
     setWordTime(seconds > 0 ? (seconds * 1000) / spokenFirst.split(' ').length : LIVE_WORD_TIME);
+    if (voice) {
+      pace.current = { first: spokenFirst.split(' ').length, total: reply.split(' ').length, rest: false };
+      setSpoken(0);
+    }
     setLiveAnswer(reply);
     setPhase('speaking');
     // Keep the conversation going: once the answer has been read out, listen for a follow-up.
@@ -334,11 +413,20 @@ export function VoiceSheet({ onClose, onBook, startFullScreen = false, onLeave, 
         done();
         return;
       }
-      const length = await loadVoice(next);
-      if (id !== turn.current) return;
+      // Usually loaded already; otherwise wait a moment for it.
+      for (let waited = 0; !restPlayer.isLoaded && waited < 4000; waited += 60) {
+        await new Promise((resolve) => setTimeout(resolve, 60));
+        if (id !== turn.current) return;
+      }
       afterVoice.current = done;
-      player.play();
-      if (length > 0) voiceEnd.current = setTimeout(voiceFinished, length * 1000 + 700);
+      restPlayer.seekTo(0);
+      if (pace.current) pace.current.rest = true;
+      wasPlaying.current = false;
+      stoppedFor.current = 0;
+      restPlayer.play();
+      const length = restPlayer.duration;
+      const restWords = pace.current ? pace.current.total - pace.current.first : 12;
+      voiceEnd.current = setTimeout(voiceFinished, length > 0 ? length * 1000 + 700 : (restWords / 1.5) * 1000 + 2500);
     };
     say(reply, language, voice ? thenRest : done, voice, seconds);
   }
@@ -700,6 +788,7 @@ export function VoiceSheet({ onClose, onBook, startFullScreen = false, onLeave, 
                 <StreamingText
                   text={live ? liveAnswer : LIVE_TURN.answer}
                   msPerWord={live ? wordTime : LIVE_TIMING.spokenWord}
+                  position={live ? spoken : undefined}
                   style={{ fontFamily: Fonts.semiBold, fontSize: 20, lineHeight: 28, color: theme.textStrong }}
                   onDone={() => {
                     setAnswered(true);
