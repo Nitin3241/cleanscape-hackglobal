@@ -4,8 +4,8 @@ An app that makes it easy for UAE residents to join community clean-ups, with **
 
 Built for **HackGlobal 2026** (Polaris School of Technology, powered by Vultr). Track: **Civic and real-world impact**.
 
-- Live demo (the app in a browser, served from Vultr): http://139.84.154.80/app
-- Ask Earthy page (typed chat only): http://139.84.154.80
+- Live demo (the app in a phone frame, served from Vultr): http://139.84.154.80
+- In a browser the camera and microphone are off (they need https); the phone build has them.
 - Architecture: [docs/architecture.png](docs/architecture.png)
 
 ![Architecture](docs/architecture.png)

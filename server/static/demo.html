@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CleanScape</title>
+<link rel="icon" href="/app/favicon.ico">
+<style>
+  html, body { height: 100%; margin: 0; }
+  body { background: #E6F3F8; display: flex; align-items: center; justify-content: center; overflow: hidden; color-scheme: light only; }
+  /* A phone the size of the designs (393 x 852), scaled to fit the window. */
+  .phone { width: 393px; height: 852px; flex: none; padding: 12px; border-radius: 60px; background: #12252E; box-shadow: 0 24px 64px rgba(18, 37, 46, 0.28); transform-origin: center; }
+  .screen { width: 100%; height: 100%; border: 0; border-radius: 48px; background: #fff; display: block; }
+</style>
+</head>
+<body>
+<div class="phone" id="phone"><iframe class="screen" src="/app/" title="CleanScape app" allow="microphone; camera"></iframe></div>
+<script>
+  // On a real phone, open the app full screen instead of a picture of a phone.
+  if (window.innerWidth < 520) location.replace('/app/');
+  var phone = document.getElementById('phone');
+  function fit() {
+    var scale = Math.min(1, (window.innerHeight - 32) / 876, (window.innerWidth - 32) / 417);
+    phone.style.transform = 'scale(' + scale + ')';
+  }
+  window.addEventListener('resize', fit);
+  fit();
+</script>
+</body>
+</html>

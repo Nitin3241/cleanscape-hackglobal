@@ -154,6 +154,13 @@ SPOKEN_STYLE = (
 
 @app.get("/")
 def home():
+    """The live demo: the CleanScape app in a phone frame."""
+    return FileResponse(os.path.join(os.path.dirname(__file__), "static", "demo.html"))
+
+
+@app.get("/ask")
+def ask_page():
+    """The plain Ask Earthy page: typed chat only."""
     return FileResponse(os.path.join(os.path.dirname(__file__), "static", "index.html"))
 
 
