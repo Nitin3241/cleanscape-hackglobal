@@ -144,13 +144,29 @@ export type SeenItem = {
  */
 export async function scanItem(uri: string): Promise<SeenItem> {
   const data = (await uploadFile('/api/look', uri, 'photo', 'image/jpeg', 60000)) as Partial<Record<keyof SeenItem, unknown>>;
-  const reply = typeof data.reply === 'string' ? data.reply.trim() : '';
+  let reply = clean(data.reply);
+  let item = clean(data.item);
+  let tip = clean(data.tip);
+  let named = clean(data.bin).toLowerCase();
+  // Sometimes the model's answer arrives as its raw JSON text. Pull the parts out of it here.
+  if (reply.includes('"say"')) {
+    const part = (key: string) => clean(new RegExp(`"${key}"\\s*:\\s*"((?:[^"\\\\]|\\\\.)*)"`).exec(reply)?.[1]);
+    item = item || part('item');
+    tip = tip || part('tip');
+    named = named && named !== 'unknown' ? named : part('bin').toLowerCase();
+    reply = part('say') || reply;
+  }
   if (!reply) throw new Error('Earthy sent an empty answer');
-  const bin = data.bin === 'green' || data.bin === 'black' || data.bin === 'drop-off' ? data.bin : 'unknown';
-  return {
-    reply,
-    item: typeof data.item === 'string' ? data.item.trim() : '',
-    bin,
-    tip: typeof data.tip === 'string' ? data.tip.trim() : '',
-  };
+  // The bin can come back worded differently ("green bin", "Drop-off point"). If it is missing, the spoken
+  // line itself says where the item goes, so read it from there.
+  const where = (text: string): SeenItem['bin'] =>
+    /drop[\s-]?off/.test(text) ? 'drop-off' : /green/.test(text) ? 'green' : /black/.test(text) ? 'black' : 'unknown';
+  let bin = where(named);
+  if (bin === 'unknown') bin = where(reply.toLowerCase());
+  return { reply, item, bin, tip };
+}
+
+/** A text field from the server, without stray quote marks or spaces around it. */
+function clean(value: unknown): string {
+  return typeof value === 'string' ? value.trim().replace(/^["'“”‘’`]+|["'“”‘’`]+$/g, '').trim() : '';
 }
