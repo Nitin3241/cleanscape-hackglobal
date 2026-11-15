@@ -154,7 +154,13 @@ SPOKEN_STYLE = (
 
 @app.get("/")
 def home():
-    """The live demo: the CleanScape app in a phone frame."""
+    """The front door: on a phone, two steps to open the app in Expo Go; on a computer, a code to scan."""
+    return FileResponse(os.path.join(os.path.dirname(__file__), "static", "start.html"), headers={"Cache-Control": "no-store"})
+
+
+@app.get("/demo")
+def demo_page():
+    """The app in a phone frame, for clicking through in a browser."""
     return FileResponse(os.path.join(os.path.dirname(__file__), "static", "demo.html"))
 
 

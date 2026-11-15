@@ -4,8 +4,8 @@ An app that makes it easy for UAE residents to join community clean-ups, with **
 
 Built for **HackGlobal 2026** (Polaris School of Technology, powered by Vultr). Track: **Civic and real-world impact**.
 
-- Live demo (the app in a phone frame, served from Vultr): http://139.84.154.80
-- In a browser the camera and microphone are off (they need https); the phone build has them.
+- Live demo: http://139.84.154.80. On a phone it gives two steps (install Expo Go, open the app). On a computer it shows a code to scan, plus a browser preview of the screens.
+- The full app, with voice and camera, runs on a phone in Expo Go.
 - Architecture: [docs/architecture.png](docs/architecture.png)
 
 ![Architecture](docs/architecture.png)
