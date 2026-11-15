@@ -157,6 +157,19 @@ def home():
     return FileResponse(os.path.join(os.path.dirname(__file__), "static", "index.html"))
 
 
+APP_DIR = os.path.join(os.path.dirname(__file__), "static", "app")
+
+
+@app.get("/app")
+@app.get("/app/{path:path}")
+def phone_app(path: str = ""):
+    """The CleanScape app itself, built for the browser. Any path that is not a file opens the app (it routes itself)."""
+    target = os.path.normpath(os.path.join(APP_DIR, path))
+    if path and target.startswith(APP_DIR + os.sep) and os.path.isfile(target):
+        return FileResponse(target)
+    return FileResponse(os.path.join(APP_DIR, "index.html"))
+
+
 @app.get("/health")
 def health():
     return {
