@@ -191,6 +191,29 @@ def phone_app(request: Request, path: str = ""):
     return FileResponse(os.path.join(APP_DIR, "index.html"), headers={"Cache-Control": "no-store"})
 
 
+class BrowserNote(BaseModel):
+    event: str = Field(max_length=60)
+    detail: str = Field(default="", max_length=400)
+
+
+_notes = {"hour": 0, "count": 0}
+
+
+@app.post("/api/browser-note")
+def browser_note(note: BrowserNote, request: Request):
+    """A short technical note from the browser build of the app, such as "voice refused: NotAllowedError".
+    It is printed in the server log (`docker logs earthy`) so a problem on a phone we can't see can be found.
+    It never carries sound, a photo or what was said."""
+    hour = int(time.time() // 3600)
+    if _notes["hour"] != hour:
+        _notes.update(hour=hour, count=0)
+    _notes["count"] += 1
+    if _notes["count"] <= 600:  # plenty for real use; stops the log being flooded
+        agent = request.headers.get("user-agent", "")[:140]
+        print(f"Browser note: {note.event} | {note.detail} | {agent}", flush=True)
+    return {"ok": True}
+
+
 @app.get("/health")
 def health():
     return {

@@ -24,6 +24,32 @@ const UNKNOWN_LENGTH = 3;
 
 /* ------------------------------------------------------------------ shared pieces */
 
+const noted = new Set<string>();
+
+/**
+ * Leaves a short technical note in the server's log, such as "voice refused: NotAllowedError", so a problem
+ * on a phone we can't see can still be found. It never carries sound, a photo or what was said. `once` keeps
+ * a repeating note to one line.
+ */
+function note(event: string, detail = '', once = false) {
+  if (once && noted.has(event)) return;
+  noted.add(event);
+  try {
+    void fetch('/api/browser-note', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ event, detail: detail.slice(0, 380) }),
+      keepalive: true,
+    }).catch(() => {});
+  } catch {
+    // A note that can't be sent is not worth interrupting anything for.
+  }
+}
+
+function named(error: unknown): string {
+  return error instanceof Error ? `${error.name}: ${error.message}`.slice(0, 160) : String(error).slice(0, 160);
+}
+
 let context: AudioContext | null = null;
 
 /** One AudioContext for the page: it measures the microphone and reads how long a clip is. It plays nothing. */
@@ -92,6 +118,7 @@ function wavFile(samples: Float32Array, rate: number): Blob {
 const pool: HTMLAudioElement[] = [];
 const borrowed = new Set<HTMLAudioElement>();
 const ready = new WeakSet<HTMLAudioElement>();
+const starting = new WeakSet<HTMLAudioElement>();
 // A twentieth of a second of silence. Playing it during a tap is what makes an audio element ready.
 let silence = '';
 let watching = false;
@@ -108,22 +135,31 @@ function prepareOnTap() {
   const audio = audioContext();
   if (audio && audio.state !== 'running') audio.resume().catch(() => {});
   for (const element of pool) {
-    if (ready.has(element) || borrowed.has(element)) continue;
+    // One tap arrives as two events (touch, then click): leave an element alone while it is already starting.
+    if (ready.has(element) || borrowed.has(element) || starting.has(element)) continue;
     try {
+      starting.add(element);
       element.src = silence;
       const started = element.play();
       const settle = () => {
+        starting.delete(element);
         ready.add(element);
+        note('sound ready', `audio ${context?.state ?? 'none'}`, true);
         // Only stop the silence: by now a player may have borrowed this element and started a real clip.
         if (element.src === silence) {
           element.pause();
           element.currentTime = 0;
         }
       };
-      if (started) started.then(settle).catch(() => {});
-      else settle();
+      if (started) {
+        started.then(settle).catch((error: unknown) => {
+          // Try again on the next tap.
+          starting.delete(element);
+          note('sound not ready', named(error), true);
+        });
+      } else settle();
     } catch {
-      // Try again on the next tap.
+      starting.delete(element);
     }
   }
 }
@@ -293,9 +329,10 @@ class WebPlayer {
       if (id !== this.loading) return;
       saved = URL.createObjectURL(clip);
       address = saved;
-    } catch {
+    } catch (error) {
       // Let the audio element fetch it by itself.
       if (id !== this.loading) return;
+      note('clip not fetched', named(error));
     }
     const element = this.audio();
     if (this.objectUrl) URL.revokeObjectURL(this.objectUrl);
@@ -335,7 +372,10 @@ class WebPlayer {
       .catch((error: unknown) => {
         // "AbortError" only means pause() arrived first. Anything else means the browser will not play it.
         const name = error instanceof Error ? error.name : '';
-        if (name !== 'AbortError' && element.paused && this.ticker) this.startClock();
+        if (name !== 'AbortError' && element.paused && this.ticker) {
+          note('voice refused', `${named(error)}; element ${ready.has(element) ? 'ready' : 'not ready'}`);
+          this.startClock();
+        }
       });
   }
 
@@ -470,7 +510,8 @@ export async function requestRecordingPermissionsAsync(): Promise<Permission> {
     // If no recording follows, let the microphone go again.
     heldTimer = setTimeout(dropHeld, 10000);
     return { granted: true, status: 'granted', canAskAgain: true, expires: 'never' };
-  } catch {
+  } catch (error) {
+    note('microphone refused', named(error));
     return { granted: false, status: 'denied', canAskAgain: true, expires: 'never' };
   }
 }
@@ -615,17 +656,21 @@ class WebRecorder {
     // First choice: the raw sound as a WAV. Second: the browser's recording, turned into a WAV. Last: the
     // browser's recording as it is, which the server can still read.
     let file: Blob | null = samplesToWav(raw, rate);
+    let how = 'raw sound';
     if (!file) {
+      how = 'decoded';
       const recording = new Blob(chunks, { type: media.mimeType || chunks[0]?.type || 'audio/webm' });
       file = recording.size > 0 ? recording : null;
       if (file) {
         try {
           file = await toWav(file);
-        } catch {
+        } catch (error) {
           // Send it in the format the browser recorded.
+          how = `as recorded (${named(error)})`;
         }
       }
     }
+    note('recorded', `${how}; ${file ? `${file.type} ${file.size} bytes` : 'nothing'}; from ${media.mimeType || 'default'}; audio ${context?.state ?? 'none'}; ${raw.length} pieces`);
     if (this.objectUrl) URL.revokeObjectURL(this.objectUrl);
     this.objectUrl = file ? URL.createObjectURL(file) : null;
     this.uri = this.objectUrl;

@@ -67,6 +67,7 @@ Said plainly, so nobody is misled: the work on this branch was done on 15 Nov af
 
 - **Why:** the app was submitted as an Expo Go project. Expo Go on iPhone only opens a project for the Expo account that owns it, so nobody else's iPhone could run the demo. Android was not affected.
 - **What changed:** the same app is also built for the browser and served by the Earthy server under `/app`. No screen was redesigned and no feature was added. The changes are the parts a browser does differently: recording and playing sound (`app/src/services/earthy-audio.web.ts`), sending a recording or a photo (`app/src/services/earthy-api.ts`), asking for the camera once (`app/src/app/earthy-show.tsx`), the front page, and the build script (`deploy/build-browser-app.sh`).
+- **Notes for fixing problems:** the browser version sends short technical notes to the server log (which browser, whether sound could start, how a recording was packed). They never carry sound, a photo or what was said.
 - **Tested:** in Chrome's engine, end to end, against a stand-in for Vultr Serverless Inference. Not tested by us on every phone browser.
 
 ## Repository layout
