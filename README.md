@@ -1,6 +1,6 @@
 # CleanScape
 
-A bilingual (English and Arabic) app that makes it easy for UAE residents to join community clean-ups, with **Earthy**, an AI helper you can type to, talk to, or show an item to.
+An app that makes it easy for UAE residents to join community clean-ups, with **Earthy**, an AI helper you can type to, talk to, or show an item to.
 
 Built for **HackGlobal 2026** (Polaris School of Technology, powered by Vultr). Track: **Civic and real-world impact**.
 
@@ -17,7 +17,7 @@ People want to help keep their neighbourhood clean but drop out over small unkno
 
 - Find and join clean-ups, check in with a QR pass, log bags, earn verified hours and Smileys rewards.
 - Report litter, learn how to sort waste, host a clean-up.
-- **Ask Earthy**: type a question and get a short, honest answer about sorting waste, heat safety and your next clean-up, in English or Arabic.
+- **Ask Earthy**: type a question and get a short, honest answer about sorting waste, heat safety and your next clean-up.
 - **Talk to Earthy**: tap the mic and ask out loud. Earthy hears you, answers in a natural voice, then listens for your next question.
 - **Show Earthy an item**: take a photo of something in your hand. Earthy says what it is, which bin it goes in, and what to do first.
 
@@ -27,7 +27,7 @@ People want to help keep their neighbourhood clean but drop out over small unkno
 | --- | --- |
 | **Serverless Inference: chat** | Earthy's answers. `glm-5.3-flash` for typed chat, `deepseek-v4.1-flash-1017` for spoken answers because it replied fastest in our speed check. |
 | **Serverless Inference: speech to text** | `whisper-large-v3-turbo` turns the spoken question into text. |
-| **Serverless Inference: text to speech** | `qwen3-tts-12hz-1.7b` (voice "aiden") reads the answer aloud. Arabic answers use `chatterbox`. |
+| **Serverless Inference: text to speech** | `qwen3-tts-12hz-1.7b` (voice "aiden") reads the answer aloud. |
 | **Serverless Inference: vision** | `qwen3.8-flash-next` looks at the photo of an item and returns the item, the bin and a tip. |
 | **Cloud Compute** | One small instance (Bangalore) hosts the Earthy server (FastAPI in Docker) and the public Ask Earthy web page. |
 
@@ -51,6 +51,7 @@ Honest scope, so nobody is misled:
 - **Scripted:** the other scan screens (bags, QR check-in, the waste lessons) and Earthy's tips elsewhere in the app are designed flows, not live AI.
 - Earthy's knowledge of "your" clean-up, friends and hours is the same demo data, given to the model as context.
 - Photos and voice recordings are sent to the server for one answer and are not stored.
+- **Not built yet:** Arabic. The app is designed to be bilingual (English and Arabic), but this version is English only.
 - Earthy is told not to invent facts. If the server is unreachable it says so instead of guessing.
 
 ## What existed before the hackathon, and what was built during it
